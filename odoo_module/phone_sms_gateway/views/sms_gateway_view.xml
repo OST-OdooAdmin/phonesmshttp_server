@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Gateway Config Form View -->
+        <record id="view_phone_sms_gateway_form" model="ir.ui.view">
+            <field name="name">phone.sms.gateway.form</field>
+            <field name="model">phone.sms.gateway</field>
+            <field name="arch" type="xml">
+                <form string="Phone SMS Gateway Configuration">
+                    <header>
+                        <button name="test_connection" type="object" string="Test Connection (Local Mode)" class="oe_highlight"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="name"/>
+                                <field name="mode"/>
+                                <field name="active"/>
+                            </group>
+                            <group>
+                                <field name="phone_ip" attrs="{'invisible': [('mode', '!=', 'direct_push')]}"/>
+                                <field name="phone_port" attrs="{'invisible': [('mode', '!=', 'direct_push')]}"/>
+                                <field name="api_key"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Gateway Config Tree View -->
+        <record id="view_phone_sms_gateway_tree" model="ir.ui.view">
+            <field name="name">phone.sms.gateway.tree</field>
+            <field name="model">phone.sms.gateway</field>
+            <field name="arch" type="xml">
+                <tree string="Phone SMS Gateways">
+                    <field name="name"/>
+                    <field name="mode"/>
+                    <field name="phone_ip"/>
+                    <field name="active"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- SMS Message Form View -->
+        <record id="view_phone_sms_message_form" model="ir.ui.view">
+            <field name="name">phone.sms.message.form</field>
+            <field name="model">phone.sms.message</field>
+            <field name="arch" type="xml">
+                <form string="Outbound SMS Message">
+                    <header>
+                        <button name="action_send_now" type="object" string="Send / Queue SMS" class="oe_highlight" attrs="{'invisible': [('state', '=', 'sent')]}"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,queued,sent,failed"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="gateway_id"/>
+                                <field name="recipient_number"/>
+                            </group>
+                        </group>
+                        <group string="Message Content">
+                            <field name="message_body" nolabel="1"/>
+                        </group>
+                        <group string="Execution Logs" attrs="{'invisible': [('error_log', '=', False)]}">
+                            <field name="error_log" nolabel="1"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- SMS Message Tree View -->
+        <record id="view_phone_sms_message_tree" model="ir.ui.view">
+            <field name="name">phone.sms.message.tree</field>
+            <field name="model">phone.sms.message</field>
+            <field name="arch" type="xml">
+                <tree string="Outbound SMS Logs" decoration-info="state=='queued'" decoration-success="state=='sent'" decoration-danger="state=='failed'">
+                    <field name="create_date"/>
+                    <field name="recipient_number"/>
+                    <field name="message_body"/>
+                    <field name="gateway_id"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Actions -->
+        <record id="action_phone_sms_message" model="ir.actions.act_window">
+            <field name="name">SMS Dispatch Messages</field>
+            <field name="res_model">phone.sms.message</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
+        <record id="action_phone_sms_gateway" model="ir.actions.act_window">
+            <field name="name">SMS Phone Gateway Config</field>
+            <field name="res_model">phone.sms.gateway</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
+        <!-- Menu items -->
+        <menuitem id="menu_phone_sms_root" name="Phone SMS Gateway" sequence="10"/>
+        <menuitem id="menu_phone_sms_messages" name="Outbound SMS Logs" parent="menu_phone_sms_root" action="action_phone_sms_message" sequence="1"/>
+        <menuitem id="menu_phone_sms_config" name="Gateway Settings" parent="menu_phone_sms_root" action="action_phone_sms_gateway" sequence="2"/>
+
+    </data>
+</odoo>
