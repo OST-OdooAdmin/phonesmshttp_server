@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.phonesms.server"
-    compileSdk = 34
+    compileSdk = 33
 
     defaultConfig {
         applicationId = "com.phonesms.server"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 33
         versionCode = 1
         versionName = "1.0"
 
@@ -40,9 +40,9 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = "1.4.3"
     }
-    packaging {
+    packagingOptions {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
@@ -51,28 +51,31 @@ android {
 
 dependencies {
     // Android Core & Compose
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.core:core-ktx:1.9.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation("androidx.activity:activity-compose:1.7.0")
+    implementation(platform("androidx.compose:compose-bom:2023.03.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
     // Ktor Embedded HTTP Server (for Android HTTP listener)
-    implementation("io.ktor:ktor-server-core-jvm:2.3.8")
-    implementation("io.ktor:ktor-server-netty-jvm:2.3.8")
-    implementation("io.ktor:ktor-server-content-negotiation-jvm:2.3.8")
-    implementation("io.ktor:ktor-serialization-gson-jvm:2.3.8")
+    implementation("io.ktor:ktor-server-core-jvm:2.3.2")
+    implementation("io.ktor:ktor-server-netty-jvm:2.3.2")
+    implementation("io.ktor:ktor-server-content-negotiation-jvm:2.3.2")
+    implementation("io.ktor:ktor-serialization-gson-jvm:2.3.2")
 
     // Ktor HTTP Client (for Polling Odoo server)
-    implementation("io.ktor:ktor-client-core-jvm:2.3.8")
-    implementation("io.ktor:ktor-client-cio-jvm:2.3.8")
-    implementation("io.ktor:ktor-client-content-negotiation-jvm:2.3.8")
+    implementation("io.ktor:ktor-client-core-jvm:2.3.2")
+    implementation("io.ktor:ktor-client-cio-jvm:2.3.2")
+    implementation("io.ktor:ktor-client-content-negotiation-jvm:2.3.2")
+
+    // Gson for log serialization
+    implementation("com.google.code.gson:gson:2.10.1")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
