@@ -6,9 +6,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.gson.gson
 import io.ktor.server.application.call
 import io.ktor.server.application.install
+import io.ktor.server.cio.CIO
+import io.ktor.server.cio.CIOApplicationEngine
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.netty.Netty
-import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -24,7 +24,7 @@ class HttpServerEngine(
     private val port: Int = 8080,
     private val onLog: (String) -> Unit
 ) {
-    private var serverEngine: NettyApplicationEngine? = null
+    private var serverEngine: CIOApplicationEngine? = null
     private const val TAG = "HttpServerEngine"
 
     fun start() {
@@ -33,7 +33,7 @@ class HttpServerEngine(
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 onLog("Starting HTTP Server on port $port...")
-                serverEngine = embeddedServer(Netty, port = port) {
+                serverEngine = embeddedServer(CIO, port = port) {
                     install(ContentNegotiation) {
                         gson()
                     }
@@ -105,14 +105,3 @@ class HttpServerEngine(
         onLog("HTTP Server stopped.")
     }
 }
-
-data class SmsApiRequest(
-    val to: String,
-    val message: String
-)
-
-data class SmsApiResponse(
-    val status: String,
-    val detail: String,
-    val timestamp: Long
-)

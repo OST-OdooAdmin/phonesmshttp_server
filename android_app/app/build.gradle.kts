@@ -44,7 +44,7 @@ android {
     }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/{AL2.0,LGPL2.1,INDEX.LIST,DEPENDENCIES}"
         }
     }
 }
@@ -60,9 +60,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // Ktor Embedded HTTP Server (for Android HTTP listener)
+    // Ktor Embedded HTTP Server (CIO engine for Android compatibility)
     implementation("io.ktor:ktor-server-core-jvm:2.3.8")
-    implementation("io.ktor:ktor-server-netty-jvm:2.3.8")
+    implementation("io.ktor:ktor-server-cio-jvm:2.3.8")
     implementation("io.ktor:ktor-server-content-negotiation-jvm:2.3.8")
     implementation("io.ktor:ktor-serialization-gson-jvm:2.3.8")
 
