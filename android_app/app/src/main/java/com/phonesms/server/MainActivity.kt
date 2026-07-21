@@ -6,11 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.text.format.Formatter
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,7 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,23 +36,14 @@ class MainActivity : ComponentActivity() {
     private var smsService: SmsForegroundService? = null
     private var isBound = false
 
-    private val logsList = mutableStateListOf<String>()
-    private var isServerRunningState = mutableStateOf(false)
+    private val isServerRunningState = mutableStateOf(false)
+    private val savedLogsState = mutableStateListOf<SmsLogRecord>()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as SmsForegroundService.LocalBinder
             smsService = binder.getService()
             isBound = true
-
-            // Attach logs
-            smsService?.logs?.let { existing ->
-                logsList.clear()
-                logsList.addAll(existing)
-            }
-            smsService?.onLogListener = { newLog ->
-                logsList.add(0, newLog)
-            }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -79,6 +67,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate()
         checkAndRequestPermissions()
 
+        // Load initial persistent logs
+        reloadLogs()
+
         // Start & Bind Foreground Service
         val serviceIntent = Intent(this, SmsForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -101,10 +92,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    GatewayMainScreen(
+                    SmsGatewayApp(
                         deviceIp = getDeviceIpAddress(this),
                         isServerRunning = isServerRunningState.value,
-                        logs = logsList,
+                        logs = savedLogsState,
                         onToggleServer = { start ->
                             isServerRunningState.value = start
                             val intent = Intent(this, SmsForegroundService::class.java).apply {
@@ -112,15 +103,46 @@ class MainActivity : ComponentActivity() {
                             }
                             startService(intent)
                         },
-                        onSendManualSms = { phone, msg ->
-                            val result = SmsSender.sendSms(this, phone, msg)
+                        onSendSms = { recipient, message ->
+                            val words = getWordCount(message)
+                            if (words > 500) {
+                                Toast.makeText(this, "Error: Message exceeds 500 word limit ($words words)", Toast.LENGTH_LONG).show()
+                                return@SmsGatewayApp
+                            }
+                            
+                            val result = SmsSender.sendSms(this, recipient, message)
+                            val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
+                            
+                            val logRecord = SmsLogRecord(
+                                recipient = recipient,
+                                message = message,
+                                wordCount = words,
+                                status = statusStr
+                            )
+                            SmsLogStorage.saveLog(this, logRecord)
+                            reloadLogs()
+
                             Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
-                            smsService?.addLog("Manual Test SMS -> $phone (${if (result.success) "SUCCESS" else "FAILED"})")
+                            smsService?.addLog("Manual SMS -> $recipient [$statusStr]")
+                        },
+                        onExportLogs = {
+                            val msg = SmsLogStorage.exportLogsToCSV(this)
+                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                        },
+                        onClearLogs = {
+                            SmsLogStorage.clearLogs(this)
+                            reloadLogs()
+                            Toast.makeText(this, "Log history cleared.", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
             }
         }
+    }
+
+    private fun reloadLogs() {
+        savedLogsState.clear()
+        savedLogsState.addAll(SmsLogStorage.getLogs(this))
     }
 
     override fun onDestroy() {
@@ -165,137 +187,249 @@ class MainActivity : ComponentActivity() {
         }
         return "127.0.0.1"
     }
+
+    private fun getWordCount(text: String): Int {
+        if (text.isBlank()) return 0
+        return text.trim().split("\\s+".toRegex()).size
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GatewayMainScreen(
+fun SmsGatewayApp(
     deviceIp: String,
     isServerRunning: Boolean,
-    logs: List<String>,
+    logs: List<SmsLogRecord>,
     onToggleServer: (Boolean) -> Unit,
-    onSendManualSms: (String, String) -> Unit
+    onSendSms: (String, String) -> Unit,
+    onExportLogs: () -> Unit,
+    onClearLogs: () -> Unit
 ) {
-    var testPhone by remember { mutableStateOf("") }
-    var testMessage by remember { mutableStateOf("") }
+    var recipientPhone by remember { mutableStateOf("") }
+    var messageText by remember { mutableStateOf("") }
+
+    val wordCount = remember(messageText) {
+        if (messageText.isBlank()) 0 else messageText.trim().split("\\s+".toRegex()).size
+    }
+    val isWordCountExceeded = wordCount > 500
+
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header Banner
+        // App Header
         Text(
-            text = "📱 Phone SMS HTTP Gateway",
+            text = "📱 Phone SMS Gateway App",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 6.dp)
         )
 
-        // IP Connection Card
+        // IP & Status Summary Card
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(text = "Local Wi-Fi Endpoint:", fontSize = 12.sp, color = Color.Gray)
-                Text(
-                    text = "http://$deviceIp:8080/send-sms",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF64B5F6)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(text = "Local Endpoint:", fontSize = 11.sp, color = Color.Gray)
+                    Text(
+                        text = "http://$deviceIp:8080/send-sms",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF64B5F6)
+                    )
+                }
+                Switch(
+                    checked = isServerRunning,
+                    onCheckedChange = { onToggleServer(it) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Server Toggle Switch
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(text = "HTTP Server Engine", fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = if (isServerRunning) "Status: RUNNING (:8080)" else "Status: STOPPED",
-                    fontSize = 12.sp,
-                    color = if (isServerRunning) Color(0xFF81C784) else Color(0xFFE57373)
-                )
-            }
-            Switch(
-                checked = isServerRunning,
-                onCheckedChange = { onToggleServer(it) }
+        // Navigation Tabs (Send SMS vs View Logs)
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("✉️ Send SMS") }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("📋 Logs (${logs.size})") }
             )
         }
 
-        Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-        // Manual Test Dispatch Section
-        Text(text = "Manual SMS Test Dispatch", fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(6.dp))
-        OutlinedTextField(
-            value = testPhone,
-            onValueChange = { testPhone = it },
-            label = { Text("Recipient Phone (+1234567890)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        OutlinedTextField(
-            value = testMessage,
-            onValueChange = { testMessage = it },
-            label = { Text("Test Message Text") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                if (testPhone.isNotBlank() && testMessage.isNotBlank()) {
-                    onSendManualSms(testPhone, testMessage)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Send Test SMS")
-        }
-
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Live Log Terminal
-        Text(text = "Live Dispatch Logs", fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF000000), shape = RoundedCornerShape(8.dp))
-                .padding(8.dp)
-        ) {
-            if (logs.isEmpty()) {
-                Text(
-                    text = "No log activity yet. Toggle HTTP server ON or send a test SMS...",
-                    color = Color.DarkGray,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
+        if (selectedTab == 0) {
+            // TAB 1: SEND SMS FORM
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Recipient Phone Number", fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = recipientPhone,
+                    onValueChange = { recipientPhone = it },
+                    placeholder = { Text("+1234567890") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
-            } else {
-                LazyColumn {
-                    items(logs) { logLine ->
-                        Text(
-                            text = logLine,
-                            color = Color(0xFF00FF66),
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Message Content", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "$wordCount / 500 words",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isWordCountExceeded) Color.Red else if (wordCount > 450) Color(0xFFFF9800) else Color(0xFF81C784)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = messageText,
+                    onValueChange = { messageText = it },
+                    placeholder = { Text("Type message here (Max 500 words)...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    isError = isWordCountExceeded
+                )
+
+                if (isWordCountExceeded) {
+                    Text(
+                        text = "⚠️ Message exceeds maximum 500 words limit!",
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        if (recipientPhone.isNotBlank() && messageText.isNotBlank()) {
+                            onSendSms(recipientPhone, messageText)
+                            messageText = ""
+                        }
+                    },
+                    enabled = recipientPhone.isNotBlank() && messageText.isNotBlank() && !isWordCountExceeded,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("🚀 Send SMS Message", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        } else {
+            // TAB 2: LOGS VIEW & DOWNLOAD
+            Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Sent Messages Log", fontWeight = FontWeight.Bold)
+                    Row {
+                        Button(
+                            onClick = onExportLogs,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text("📥 Download CSV", fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        TextButton(onClick = onClearLogs) {
+                            Text("Clear", color = Color.Red, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (logs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "No SMS dispatch logs recorded yet.", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(logs) { log ->
+                            SmsLogCard(log)
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SmsLogCard(log: SmsLogRecord) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (log.status.startsWith("SUCCESS")) Color(0xFF1B2E1B) else Color(0xFF331B1B)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "To: ${log.recipient}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.White
+                )
+                Text(
+                    text = log.status,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    color = if (log.status.startsWith("SUCCESS")) Color(0xFF81C784) else Color(0xFFE57373)
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Time: ${log.timestamp}", fontSize = 11.sp, color = Color.Gray)
+                Text(text = "${log.wordCount} words", fontSize = 11.sp, color = Color.Gray)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = log.message,
+                fontSize = 13.sp,
+                color = Color(0xFFE0E0E0),
+                fontFamily = FontFamily.SansSerif
+            )
         }
     }
 }
