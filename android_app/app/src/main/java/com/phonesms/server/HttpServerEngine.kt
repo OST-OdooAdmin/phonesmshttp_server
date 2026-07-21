@@ -7,7 +7,7 @@ import io.ktor.serialization.gson.gson
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
-import io.ktor.server.cio.CIOApplicationEngine
+import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.receive
@@ -24,7 +24,7 @@ class HttpServerEngine(
     private val port: Int = 8080,
     private val onLog: (String) -> Unit
 ) {
-    private var serverEngine: CIOApplicationEngine? = null
+    private var serverEngine: ApplicationEngine? = null
     private const val TAG = "HttpServerEngine"
 
     fun start() {
