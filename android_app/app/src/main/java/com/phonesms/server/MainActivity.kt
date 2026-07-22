@@ -294,20 +294,10 @@ fun SmsGatewayApp(
                 OutlinedTextField(
                     value = recipientPhone,
                     onValueChange = { recipientPhone = it },
-                    placeholder = { Text("+6596780253 or 96780253") },
+                    placeholder = { Text("+6591234567 or 91234567") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-
-                // Country Code Warning hint if +967 was typed
-                if (recipientPhone.startsWith("+967")) {
-                    Text(
-                        text = "⚠️ Notice: +967 is Yemen country code. For Singapore, use +65 (e.g. +65${recipientPhone.removePrefix("+967")})",
-                        color = Color(0xFFFF9800),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
