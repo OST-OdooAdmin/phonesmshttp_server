@@ -96,16 +96,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     SmsGatewayApp(
-                        deviceIp = getDeviceIpAddress(this),
-                        isServerRunning = isServerRunningState.value,
                         logs = savedLogsState,
-                        onToggleServer = { start ->
-                            isServerRunningState.value = start
-                            val intent = Intent(this, SmsForegroundService::class.java).apply {
-                                action = if (start) SmsForegroundService.ACTION_START_SERVER else SmsForegroundService.ACTION_STOP_SERVER
-                            }
-                            startService(intent)
-                        },
                         onSendSms = { recipient, message ->
                             val words = getWordCount(message)
                             if (words > 500) {
@@ -171,26 +162,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun getDeviceIpAddress(context: Context): String {
-        try {
-            val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
-            for (intf in interfaces) {
-                val addrs = Collections.list(intf.inetAddresses)
-                for (addr in addrs) {
-                    if (!addr.isLoopbackAddress) {
-                        val host = addr.hostAddress
-                        if (host != null && !host.contains(":")) {
-                            return host
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return "127.0.0.1"
-    }
-
     private fun getWordCount(text: String): Int {
         if (text.isBlank()) return 0
         return text.trim().split("\\s+".toRegex()).size
@@ -200,10 +171,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmsGatewayApp(
-    deviceIp: String,
-    isServerRunning: Boolean,
     logs: List<SmsLogRecord>,
-    onToggleServer: (Boolean) -> Unit,
     onSendSms: (String, String) -> Unit,
     onExportLogs: () -> Unit,
     onClearLogs: () -> Unit
@@ -229,39 +197,8 @@ fun SmsGatewayApp(
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(bottom = 12.dp)
         )
-
-        // IP & Status Summary Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(text = "Local Endpoint:", fontSize = 11.sp, color = Color.Gray)
-                    Text(
-                        text = "http://$deviceIp:8080/send-sms",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF64B5F6)
-                    )
-                }
-                Switch(
-                    checked = isServerRunning,
-                    onCheckedChange = { onToggleServer(it) }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
 
         // Navigation Tabs (Send SMS vs View Logs)
         TabRow(selectedTabIndex = selectedTab) {
@@ -318,23 +255,14 @@ fun SmsGatewayApp(
                 ) {
                     Text(text = "Message Content", fontWeight = FontWeight.SemiBold)
                     
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = {
-                                val timestampStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                                messageText = "Test SMS from Android Gateway [$timestampStr]"
-                            },
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("🧪 Fill Test Msg", fontSize = 11.sp, color = Color(0xFF64B5F6))
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "$wordCount / 500 words",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isWordCountExceeded) Color.Red else if (wordCount > 450) Color(0xFFFF9800) else Color(0xFF81C784)
-                        )
+                    TextButton(
+                        onClick = {
+                            val timestampStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                            messageText = "Test SMS from Android Gateway [$timestampStr]"
+                        },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text("🧪 Fill Test Msg", fontSize = 11.sp, color = Color(0xFF64B5F6))
                     }
                 }
 
