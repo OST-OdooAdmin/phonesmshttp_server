@@ -29,7 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import java.net.NetworkInterface
+import java.text.SimpleDateFormat
 import java.util.Collections
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -122,7 +125,7 @@ class MainActivity : ComponentActivity() {
                             SmsLogStorage.saveLog(this, logRecord)
                             reloadLogs()
 
-                            Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
                             smsService?.addLog("Manual SMS -> $recipient [$statusStr]")
                         },
                         onExportLogs = {
@@ -279,29 +282,60 @@ fun SmsGatewayApp(
         if (selectedTab == 0) {
             // TAB 1: SEND SMS FORM
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Recipient Phone Number", fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Recipient Phone Number", fontWeight = FontWeight.SemiBold)
+                    Text(text = "Format: +65xxxxxxx", fontSize = 11.sp, color = Color.Gray)
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
                     value = recipientPhone,
                     onValueChange = { recipientPhone = it },
-                    placeholder = { Text("+1234567890") },
+                    placeholder = { Text("+6596780253 or 96780253") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                // Country Code Warning hint if +967 was typed
+                if (recipientPhone.startsWith("+967")) {
+                    Text(
+                        text = "⚠️ Notice: +967 is Yemen country code. For Singapore, use +65 (e.g. +65${recipientPhone.removePrefix("+967")})",
+                        color = Color(0xFFFF9800),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Message Content", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = "$wordCount / 500 words",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isWordCountExceeded) Color.Red else if (wordCount > 450) Color(0xFFFF9800) else Color(0xFF81C784)
-                    )
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                val timestampStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                                messageText = "Test SMS from Android Gateway [$timestampStr]"
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("🧪 Fill Test Msg", fontSize = 11.sp, color = Color(0xFF64B5F6))
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$wordCount / 500 words",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isWordCountExceeded) Color.Red else if (wordCount > 450) Color(0xFFFF9800) else Color(0xFF81C784)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -329,7 +363,13 @@ fun SmsGatewayApp(
                 Button(
                     onClick = {
                         if (recipientPhone.isNotBlank() && messageText.isNotBlank()) {
-                            onSendSms(recipientPhone, messageText)
+                            // Auto prefix +65 if 8-digit Singapore number entered without country code
+                            val cleanTarget = if (!recipientPhone.startsWith("+") && recipientPhone.length == 8) {
+                                "+65$recipientPhone"
+                            } else {
+                                recipientPhone
+                            }
+                            onSendSms(cleanTarget, messageText)
                             messageText = ""
                         }
                     },
