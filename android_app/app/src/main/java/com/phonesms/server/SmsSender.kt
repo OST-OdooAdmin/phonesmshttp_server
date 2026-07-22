@@ -10,23 +10,57 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.SmsManager
+import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+data class SimInfo(
+    val subId: Int,
+    val slotIndex: Int,
+    val carrierName: String,
+    val displayName: String
+)
+
 object SmsSender {
 
     private const val ACTION_SMS_SENT = "com.phonesms.server.SMS_SENT"
     private const val TAG = "SmsSender"
 
-    fun sendSms(context: Context, destinationAddress: String, message: String): SmsResult {
+    fun getActiveSimCards(context: Context): List<SimInfo> {
+        val list = mutableListOf<SimInfo>()
+        try {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                val sm = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+                val activeList: List<SubscriptionInfo>? = sm?.activeSubscriptionInfoList
+                activeList?.forEach { info ->
+                    val carrier = info.carrierName?.toString()?.takeIf { it.isNotBlank() }
+                        ?: info.displayName?.toString()?.takeIf { it.isNotBlank() }
+                        ?: "SIM ${info.simSlotIndex + 1}"
+                    list.add(
+                        SimInfo(
+                            subId = info.subscriptionId,
+                            slotIndex = info.simSlotIndex + 1,
+                            carrierName = carrier,
+                            displayName = info.displayName?.toString() ?: "SIM ${info.simSlotIndex + 1}"
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching active SIMs", e)
+        }
+        return list
+    }
+
+    fun sendSms(context: Context, destinationAddress: String, message: String, targetSubId: Int? = null): SmsResult {
         // 1. Verify SEND_SMS permission runtime state
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
             return SmsResult(
                 false,
-                "Permission Denied: SEND_SMS permission is missing. Please go to Phone Settings -> Apps -> SMS HTTP Gateway -> Permissions and grant SMS access."
+                "Permission Denied: SEND_SMS permission is missing. Please grant SMS access in Settings."
             )
         }
 
@@ -36,7 +70,7 @@ object SmsSender {
         }
 
         return try {
-            val smsManager = getBestSmsManager(context)
+            val smsManager = getTargetSmsManager(context, targetSubId)
 
             // 2. Prepare PendingIntent for real-time delivery confirmation
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -62,7 +96,7 @@ object SmsSender {
                         Activity.RESULT_OK -> SmsResult(true, "SUCCESS: SMS delivered to carrier tower for $cleanPhone")
                         SmsManager.RESULT_ERROR_GENERIC_FAILURE -> SmsResult(
                             false,
-                            "FAILED (Generic Error): Carrier or device security (e.g. Xiaomi MIUI 'Send SMS in background') blocked the SMS."
+                            "FAILED (Generic Error): Carrier or device security blocked the SMS on this SIM."
                         )
                         SmsManager.RESULT_ERROR_NO_SERVICE -> SmsResult(false, "FAILED: No cellular service / SIM not registered.")
                         SmsManager.RESULT_ERROR_NULL_PDU -> SmsResult(false, "FAILED: Null PDU error.")
@@ -112,7 +146,16 @@ object SmsSender {
         }
     }
 
-    private fun getBestSmsManager(context: Context): SmsManager {
+    private fun getTargetSmsManager(context: Context, targetSubId: Int?): SmsManager {
+        if (targetSubId != null && targetSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(SmsManager::class.java).createForSubscriptionId(targetSubId)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsManager.getSmsManagerForSubscriptionId(targetSubId)
+            }
+        }
+
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val subId = SubscriptionManager.getDefaultSmsSubscriptionId()
             if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {

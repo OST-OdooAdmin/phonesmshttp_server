@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,9 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import java.net.NetworkInterface
 import java.text.SimpleDateFormat
-import java.util.Collections
 import java.util.Date
 import java.util.Locale
 
@@ -39,8 +38,9 @@ class MainActivity : ComponentActivity() {
     private var smsService: SmsForegroundService? = null
     private var isBound = false
 
-    private val isServerRunningState = mutableStateOf(false)
     private val savedLogsState = mutableStateListOf<SmsLogRecord>()
+    private val availableSimsState = mutableStateListOf<SimInfo>()
+    private val selectedSubIdState = mutableStateOf<Int?>(null)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
         val smsGranted = permissions[Manifest.permission.SEND_SMS] ?: false
         if (smsGranted) {
             Toast.makeText(this, "SMS Permission Granted!", Toast.LENGTH_SHORT).show()
+            reloadSimCards()
         } else {
             Toast.makeText(this, "SMS Permission is required to send SMS!", Toast.LENGTH_LONG).show()
         }
@@ -70,8 +71,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         checkAndRequestPermissions()
 
-        // Load initial persistent logs
+        // Load initial persistent logs & SIM cards
         reloadLogs()
+        reloadSimCards()
 
         // Start & Bind Foreground Service
         val serviceIntent = Intent(this, SmsForegroundService::class.java)
@@ -97,6 +99,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     SmsGatewayApp(
                         logs = savedLogsState,
+                        availableSims = availableSimsState,
+                        selectedSubId = selectedSubIdState.value,
+                        onSelectSim = { subId -> selectedSubIdState.value = subId },
                         onSendSms = { recipient, message ->
                             val words = getWordCount(message)
                             if (words > 500) {
@@ -104,7 +109,7 @@ class MainActivity : ComponentActivity() {
                                 return@SmsGatewayApp
                             }
                             
-                            val result = SmsSender.sendSms(this, recipient, message)
+                            val result = SmsSender.sendSms(this, recipient, message, targetSubId = selectedSubIdState.value)
                             val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
                             
                             val logRecord = SmsLogRecord(
@@ -139,6 +144,15 @@ class MainActivity : ComponentActivity() {
         savedLogsState.addAll(SmsLogStorage.getLogs(this))
     }
 
+    private fun reloadSimCards() {
+        availableSimsState.clear()
+        val sims = SmsSender.getActiveSimCards(this)
+        availableSimsState.addAll(sims)
+        if (selectedSubIdState.value == null && sims.isNotEmpty()) {
+            selectedSubIdState.value = sims[0].subId
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (isBound) {
@@ -148,7 +162,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val neededPermissions = mutableListOf(Manifest.permission.SEND_SMS)
+        val neededPermissions = mutableListOf(Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -172,6 +186,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SmsGatewayApp(
     logs: List<SmsLogRecord>,
+    availableSims: List<SimInfo>,
+    selectedSubId: Int?,
+    onSelectSim: (Int) -> Unit,
     onSendSms: (String, String) -> Unit,
     onExportLogs: () -> Unit,
     onClearLogs: () -> Unit
@@ -197,8 +214,54 @@ fun SmsGatewayApp(
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
+
+        // Dual SIM Selector Bar if multiple SIM cards found
+        if (availableSims.size > 1) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Send via:",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        availableSims.forEach { sim ->
+                            val isSelected = selectedSubId == sim.subId
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) Color(0xFF4CAF50) else Color(0xFF333333),
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { onSelectSim(sim.subId) }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "SIM ${sim.slotIndex}: ${sim.carrierName}",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Navigation Tabs (Send SMS vs View Logs)
         TabRow(selectedTabIndex = selectedTab) {
