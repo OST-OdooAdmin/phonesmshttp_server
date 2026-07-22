@@ -20,12 +20,28 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+data class SmsTask(
+    val id: Int,
+    val to: String,
+    val message: String
+)
+
+data class PendingSmsResponse(
+    val pending: List<SmsTask>
+)
+
+data class SmsStatusReport(
+    val task_id: Int,
+    val status: String,
+    val detail: String
+)
+
 class PollingEngine(
     private val context: Context,
     private val onLog: (String) -> Unit
 ) {
     private var pollingJob: Job? = null
-    private const val TAG = "PollingEngine"
+    private val TAG = "PollingEngine"
 
     private val httpClient by lazy {
         HttpClient(CIO) {
@@ -81,7 +97,6 @@ class PollingEngine(
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Polling error", e)
-                    // Quiet logging to prevent log overflow when offline
                 }
 
                 delay(intervalSeconds * 1000L)
@@ -95,19 +110,3 @@ class PollingEngine(
         onLog("Polling engine stopped.")
     }
 }
-
-data class SmsTask(
-    val id: Int,
-    val to: String,
-    val message: String
-)
-
-data class PendingSmsResponse(
-    val pending: List<SmsTask>
-)
-
-data class SmsStatusReport(
-    val task_id: Int,
-    val status: String,
-    val detail: String
-)

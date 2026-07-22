@@ -19,13 +19,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+data class SmsApiRequest(
+    val to: String = "",
+    val message: String = ""
+)
+
+data class SmsApiResponse(
+    val status: String,
+    val detail: String,
+    val timestamp: Long
+)
+
 class HttpServerEngine(
     private val context: Context,
     private val port: Int = 8080,
     private val onLog: (String) -> Unit
 ) {
     private var serverEngine: ApplicationEngine? = null
-    private const val TAG = "HttpServerEngine"
+    private val TAG = "HttpServerEngine"
 
     fun start() {
         if (serverEngine != null) return
@@ -53,7 +64,7 @@ class HttpServerEngine(
                                 val request = call.receive<SmsApiRequest>()
                                 onLog("Received HTTP SMS request for: ${request.to}")
                                 
-                                val result = SmsSender.sendSms(context, request.to, request.message)
+                                val result = SmsSender.sendSms(this@HttpServerEngine.context, request.to, request.message)
                                 if (result.success) {
                                     onLog("SUCCESS: Sent SMS to ${request.to}")
                                     call.respond(
