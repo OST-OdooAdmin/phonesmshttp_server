@@ -186,7 +186,7 @@ class MainActivity : ComponentActivity() {
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
-        serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:8069") ?: "http://115.135.158.84:8069"
+        serverUrlState.value = prefs.getString("server_url", "http://192.168.0.106:8069") ?: "http://192.168.0.106:8069"
         apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
         isPollingEnabledState.value = prefs.getBoolean("polling_enabled", false)
     }
@@ -290,7 +290,7 @@ fun SmsGatewayApp(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = if (isPollingEnabled) "🟢 Server Sync Active" else "⚪ Offline / Standalone",
+                    text = if (isPollingEnabled) "🟢 Local Server Sync (1 min)" else "⚪ Offline / Standalone",
                     fontSize = 11.sp,
                     color = if (isPollingEnabled) Color(0xFF81C784) else Color.Gray
                 )
@@ -503,14 +503,14 @@ fun SmsGatewayApp(
 
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
-            title = { Text("⚙️ Server Gateway Settings", fontWeight = FontWeight.Bold) },
+            title = { Text("⚙️ Local Server Settings", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(text = "Odoo Server Base URL:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "Local Server URL (JSON API):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = tempUrl,
                         onValueChange = { tempUrl = it },
-                        placeholder = { Text("http://115.135.158.84:8069") },
+                        placeholder = { Text("http://192.168.0.106:8069") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -524,12 +524,14 @@ fun SmsGatewayApp(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Text(text = "Polling Interval: 1 minute (60s JSON format)", fontSize = 11.sp, color = Color.Gray)
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Enable Background Server Sync", fontSize = 13.sp)
+                        Text(text = "Enable Local Server Sync", fontSize = 13.sp)
                         Switch(
                             checked = tempEnabled,
                             onCheckedChange = { tempEnabled = it }

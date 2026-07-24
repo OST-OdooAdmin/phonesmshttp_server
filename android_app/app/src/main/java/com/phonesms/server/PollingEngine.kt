@@ -51,7 +51,7 @@ class PollingEngine(
         }
     }
 
-    fun startPolling(serverUrl: String, apiKey: String, intervalSeconds: Int = 5) {
+    fun startPolling(serverUrl: String, apiKey: String, intervalSeconds: Int = 60) {
         if (pollingJob != null && pollingJob?.isActive == true) return
         if (serverUrl.isBlank()) {
             onLog("Polling skipped: No server URL provided.")
@@ -59,7 +59,7 @@ class PollingEngine(
         }
 
         pollingJob = CoroutineScope(Dispatchers.IO).launch {
-            onLog("Started Odoo Polling Client -> $serverUrl (Interval: ${intervalSeconds}s)")
+            onLog("Started Local Server Polling Client -> $serverUrl (Interval: ${intervalSeconds}s / 1min)")
 
             val pendingUrl = if (serverUrl.endsWith("/")) "${serverUrl}api/sms/pending" else "$serverUrl/api/sms/pending"
             val statusUrl = if (serverUrl.endsWith("/")) "${serverUrl}api/sms/status" else "$serverUrl/api/sms/status"
@@ -71,7 +71,7 @@ class PollingEngine(
                     }.body()
 
                     if (response.pending.isNotEmpty()) {
-                        onLog("Retrieved ${response.pending.size} pending SMS tasks from Odoo")
+                        onLog("Retrieved ${response.pending.size} pending JSON SMS tasks from server")
                         for (task in response.pending) {
                             onLog("Processing task #${task.id} -> ${task.to}")
                             
@@ -79,7 +79,7 @@ class PollingEngine(
                             val result = SmsSender.sendSms(context, task.to, task.message)
                             val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
                             
-                            // Save to local persistent logs silently
+                            // Save to local persistent log on phone
                             val logRecord = SmsLogRecord(
                                 recipient = task.to,
                                 message = task.message,
@@ -88,7 +88,7 @@ class PollingEngine(
                             )
                             SmsLogStorage.saveLog(context, logRecord)
                             
-                            // Post receipt back to Odoo
+                            // Post status receipt JSON back to server
                             try {
                                 httpClient.post(statusUrl) {
                                     header("X-Api-Key", apiKey)
@@ -101,7 +101,7 @@ class PollingEngine(
                                         )
                                     )
                                 }
-                                onLog("Reported status for task #${task.id} to Odoo")
+                                onLog("Reported JSON status for task #${task.id} to server")
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to report status for task #${task.id}", e)
                             }
