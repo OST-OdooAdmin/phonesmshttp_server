@@ -1,0 +1,3 @@
+{
+  "cmd": "systemctl is-active odoo 2>/dev/null || systemctl status odoo 2>/dev/null || echo 'ODOO_STATUS_CHECK'"
+}

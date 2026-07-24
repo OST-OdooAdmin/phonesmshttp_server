@@ -1,0 +1,3 @@
+{
+  "cmd": "systemctl is-active postgresql && su - postgres -c 'psql -c \"\\l\"' 2>/dev/null || echo 'POSTGRES_STATUS_CHECK'"
+}

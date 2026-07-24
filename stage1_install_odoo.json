@@ -1,0 +1,3 @@
+{
+  "cmd": "apt-get update -qq && wget -O - https://nightly.odoo.com/odoo.key | gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg 2>/dev/null && echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] http://nightly.odoo.com/17.0/nightly/deb/ ./' > /etc/apt/sources.list.d/odoo.list && apt-get update -qq && apt-get install -y odoo && systemctl enable --now odoo && echo 'ODOO_STAGE1_SUCCESS'"
+}

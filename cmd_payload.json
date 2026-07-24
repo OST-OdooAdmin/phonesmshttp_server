@@ -1,0 +1,3 @@
+{
+  "cmd": "free -m; lsb_release -a"
+}
