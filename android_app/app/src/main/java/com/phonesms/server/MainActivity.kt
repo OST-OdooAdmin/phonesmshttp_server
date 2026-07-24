@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,7 +64,7 @@ class MainActivity : ComponentActivity() {
     private val serverLogsState = mutableStateListOf<SmsLogRecord>()
     private val availableSimsState = mutableStateListOf<SimInfo>()
     private val selectedSubIdState = mutableStateOf<Int?>(null)
-    private val logFetchStatusState = mutableStateOf("Tap Refresh to fetch server logs.")
+    private val logFetchStatusState = mutableStateOf("Server logs synced.")
 
     // Persistent Settings State
     private val serverUrlState = mutableStateOf("")
@@ -140,6 +139,25 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val scope = rememberCoroutineScope()
 
+                    fun autoFetchLogs() {
+                        scope.launch {
+                            val engine = PollingEngine(this@MainActivity) {}
+                            val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
+                            serverLogsState.clear()
+                            serverLogsState.addAll(logs)
+                            logFetchStatusState.value = if (logs.isNotEmpty()) {
+                                "Synced ${logs.size} log records from server."
+                            } else {
+                                "No server logs found."
+                            }
+                        }
+                    }
+
+                    // Auto fetch on launch
+                    LaunchedEffect(Unit) {
+                        autoFetchLogs()
+                    }
+
                     SmsGatewayApp(
                         serverLogs = serverLogsState,
                         logFetchStatus = logFetchStatusState.value,
@@ -149,18 +167,9 @@ class MainActivity : ComponentActivity() {
                         apiKey = apiKeyState.value,
                         isPollingEnabled = isPollingEnabledState.value,
                         onSelectSim = { subId -> selectedSubIdState.value = subId },
-                        onFetchServerLogs = {
-                            scope.launch {
-                                logFetchStatusState.value = "Fetching logs from server..."
-                                val engine = PollingEngine(this@MainActivity) {}
-                                val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
-                                serverLogsState.clear()
-                                serverLogsState.addAll(logs)
-                                logFetchStatusState.value = if (logs.isNotEmpty()) {
-                                    "Loaded ${logs.size} log records from server."
-                                } else {
-                                    "No logs returned from server (Check URL/Network connection)."
-                                }
+                        onTabChanged = { tab ->
+                            if (tab == 1) {
+                                autoFetchLogs()
                             }
                         },
                         onSaveSettings = { url, key, enabled ->
@@ -174,6 +183,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 stopPollingService()
                             }
+                            autoFetchLogs()
                         },
                         onSendSms = { recipient, message ->
                             val words = getWordCount(message)
@@ -205,6 +215,10 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                         Log.d("MainActivity", "Posted dispatch log to server successfully.")
+                                        // Auto refresh logs after posting
+                                        launch(Dispatchers.Main) {
+                                            autoFetchLogs()
+                                        }
                                     } catch (e: Exception) {
                                         Log.e("MainActivity", "Failed to post dispatch log to server", e)
                                     }
@@ -213,6 +227,19 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Auto sync server logs when app is brought to foreground
+        if (serverUrlState.value.isNotBlank()) {
+            CoroutineScope(Dispatchers.Main).launch {
+                val engine = PollingEngine(this@MainActivity) {}
+                val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
+                serverLogsState.clear()
+                serverLogsState.addAll(logs)
             }
         }
     }
@@ -298,7 +325,7 @@ fun SmsGatewayApp(
     apiKey: String,
     isPollingEnabled: Boolean,
     onSelectSim: (Int) -> Unit,
-    onFetchServerLogs: () -> Unit,
+    onTabChanged: (Int) -> Unit,
     onSaveSettings: (String, String, Boolean) -> Unit,
     onSendSms: (String, String) -> Unit
 ) {
@@ -314,9 +341,7 @@ fun SmsGatewayApp(
     var selectedTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(selectedTab) {
-        if (selectedTab == 1) {
-            onFetchServerLogs()
-        }
+        onTabChanged(selectedTab)
     }
 
     Column(
@@ -497,7 +522,7 @@ fun SmsGatewayApp(
                 }
             }
         } else {
-            // TAB 2: SERVER LOGS VIEW (FETCHED DIRECTLY FROM SERVER)
+            // TAB 2: SERVER LOGS VIEW (FETCHED AUTOMATICALLY FROM SERVER)
             Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -511,11 +536,8 @@ fun SmsGatewayApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Central Server Logs", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(text = "Central Server Logs (Auto-Synced)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text(text = logFetchStatus, fontSize = 11.sp, color = Color.Gray)
-                        }
-                        IconButton(onClick = onFetchServerLogs) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh Logs", tint = Color(0xFF64B5F6))
                         }
                     }
                 }
@@ -529,13 +551,7 @@ fun SmsGatewayApp(
                             .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "No server logs loaded yet.", color = Color.Gray)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = onFetchServerLogs) {
-                                Text("🔄 Fetch Live Logs From Server")
-                            }
-                        }
+                        Text(text = "No server logs found (or server not reachable).", color = Color.Gray)
                     }
                 } else {
                     LazyColumn(
