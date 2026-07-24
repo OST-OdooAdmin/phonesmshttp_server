@@ -8,6 +8,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
 import os
 import subprocess
+import urllib.request
 
 DB_FILE = "/root/sms_gateway.db"
 LOG_FILE = "/var/log/sms_gateway_activity.log"
@@ -178,6 +179,21 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
                 "recipient": DEFAULT_RECIPIENT,
                 "message": msg
             }).encode('utf-8'))
+        elif self.path.startswith('/web') or self.path.startswith('/odoo'):
+            # Forward Web request to local Odoo service at 127.0.0.1:8069
+            try:
+                target_url = f"http://127.0.0.1:8069{self.path}"
+                req = urllib.request.Request(target_url, headers={k: v for k, v in self.headers.items()})
+                with urllib.request.urlopen(req, timeout=5) as res:
+                    self.send_response(res.status)
+                    for k, v in res.headers.items():
+                        self.send_header(k, v)
+                    self.end_headers()
+                    self.wfile.write(res.read())
+            except Exception as e:
+                self.send_response(302)
+                self.send_header('Location', '/status')
+                self.end_headers()
         elif self.path == '/' or self.path == '/status':
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
@@ -189,6 +205,7 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             html += "<h1>📱 SMS Gateway Server Log Dashboard</h1>"
             html += f"<h3>Server Date & Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</h3>"
             html += "<p style='color:#aaa;'>Common Log File: <code>/var/log/sms_gateway_activity.log</code> (Automatic 3-month retention window)</p>"
+            html += "<p style='color:#81C784;'>Odoo 18 Web Interface: <a href='http://192.168.0.106:8069' style='color:#81C784;'>http://192.168.0.106:8069</a> | Master Password: <code>Dreamer1!</code></p>"
             html += "<table border='1' cellpadding='8' style='border-collapse:collapse;width:100%;'>"
             html += "<tr style='background:#333;'><th>ID</th><th>Recipient</th><th>Message</th><th>State</th><th>Detail</th><th>Created At</th></tr>"
             for r in rows:
