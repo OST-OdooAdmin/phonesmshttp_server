@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,11 +45,21 @@ class MainActivity : ComponentActivity() {
     private val availableSimsState = mutableStateListOf<SimInfo>()
     private val selectedSubIdState = mutableStateOf<Int?>(null)
 
+    // Persistent Settings State
+    private val serverUrlState = mutableStateOf("")
+    private val apiKeyState = mutableStateOf("")
+    private val isPollingEnabledState = mutableStateOf(false)
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as SmsForegroundService.LocalBinder
             smsService = binder.getService()
             isBound = true
+
+            // Restore polling service if enabled
+            if (isPollingEnabledState.value && serverUrlState.value.isNotBlank()) {
+                startPollingService()
+            }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -71,7 +84,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         checkAndRequestPermissions()
 
-        // Load initial persistent logs & SIM cards
+        // Load Settings, Logs & SIM cards
+        loadSettings()
         reloadLogs()
         reloadSimCards()
 
@@ -101,7 +115,22 @@ class MainActivity : ComponentActivity() {
                         logs = savedLogsState,
                         availableSims = availableSimsState,
                         selectedSubId = selectedSubIdState.value,
+                        serverUrl = serverUrlState.value,
+                        apiKey = apiKeyState.value,
+                        isPollingEnabled = isPollingEnabledState.value,
                         onSelectSim = { subId -> selectedSubIdState.value = subId },
+                        onSaveSettings = { url, key, enabled ->
+                            serverUrlState.value = url
+                            apiKeyState.value = key
+                            isPollingEnabledState.value = enabled
+                            saveSettings(url, key, enabled)
+
+                            if (enabled) {
+                                startPollingService()
+                            } else {
+                                stopPollingService()
+                            }
+                        },
                         onSendSms = { recipient, message ->
                             val words = getWordCount(message)
                             if (words > 500) {
@@ -137,6 +166,38 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun startPollingService() {
+        val intent = Intent(this, SmsForegroundService::class.java).apply {
+            action = SmsForegroundService.ACTION_START_POLLING
+            putExtra(SmsForegroundService.EXTRA_URL, serverUrlState.value)
+            putExtra(SmsForegroundService.EXTRA_API_KEY, apiKeyState.value)
+        }
+        startService(intent)
+    }
+
+    private fun stopPollingService() {
+        val intent = Intent(this, SmsForegroundService::class.java).apply {
+            action = SmsForegroundService.ACTION_STOP_POLLING
+        }
+        startService(intent)
+    }
+
+    private fun loadSettings() {
+        val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+        serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:8069") ?: "http://115.135.158.84:8069"
+        apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
+        isPollingEnabledState.value = prefs.getBoolean("polling_enabled", false)
+    }
+
+    private fun saveSettings(url: String, key: String, enabled: Boolean) {
+        val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("server_url", url)
+            .putString("api_key", key)
+            .putBoolean("polling_enabled", enabled)
+            .apply()
     }
 
     private fun reloadLogs() {
@@ -188,13 +249,18 @@ fun SmsGatewayApp(
     logs: List<SmsLogRecord>,
     availableSims: List<SimInfo>,
     selectedSubId: Int?,
+    serverUrl: String,
+    apiKey: String,
+    isPollingEnabled: Boolean,
     onSelectSim: (Int) -> Unit,
+    onSaveSettings: (String, String, Boolean) -> Unit,
     onSendSms: (String, String) -> Unit,
     onExportLogs: () -> Unit,
     onClearLogs: () -> Unit
 ) {
     var recipientPhone by remember { mutableStateOf("") }
     var messageText by remember { mutableStateOf("") }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     val wordCount = remember(messageText) {
         if (messageText.isBlank()) 0 else messageText.trim().split("\\s+".toRegex()).size
@@ -208,14 +274,35 @@ fun SmsGatewayApp(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // App Header
-        Text(
-            text = "📱 Phone SMS Gateway App",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // App Header with Settings Gear Icon
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "📱 Phone SMS Gateway App",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (isPollingEnabled) "🟢 Server Sync Active" else "⚪ Offline / Standalone",
+                    fontSize = 11.sp,
+                    color = if (isPollingEnabled) Color(0xFF81C784) else Color.Gray
+                )
+            }
+            IconButton(onClick = { showSettingsDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = Color.White
+                )
+            }
+        }
 
         // Dual SIM Selector Bar if multiple SIM cards found
         if (availableSims.size > 1) {
@@ -344,7 +431,6 @@ fun SmsGatewayApp(
                 Button(
                     onClick = {
                         if (recipientPhone.isNotBlank() && messageText.isNotBlank()) {
-                            // Auto prefix +65 if 8-digit Singapore number entered without country code
                             val cleanTarget = if (!recipientPhone.startsWith("+") && recipientPhone.length == 8) {
                                 "+65$recipientPhone"
                             } else {
@@ -407,6 +493,66 @@ fun SmsGatewayApp(
                 }
             }
         }
+    }
+
+    // Settings Dialog Modal
+    if (showSettingsDialog) {
+        var tempUrl by remember { mutableStateOf(serverUrl) }
+        var tempKey by remember { mutableStateOf(apiKey) }
+        var tempEnabled by remember { mutableStateOf(isPollingEnabled) }
+
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("⚙️ Server Gateway Settings", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(text = "Odoo Server Base URL:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = tempUrl,
+                        onValueChange = { tempUrl = it },
+                        placeholder = { Text("http://115.135.158.84:8069") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(text = "API Key:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = tempKey,
+                        onValueChange = { tempKey = it },
+                        placeholder = { Text("secret_sms_key_123") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Enable Background Server Sync", fontSize = 13.sp)
+                        Switch(
+                            checked = tempEnabled,
+                            onCheckedChange = { tempEnabled = it }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSaveSettings(tempUrl.trim(), tempKey.trim(), tempEnabled)
+                        showSettingsDialog = false
+                    }
+                ) {
+                    Text("Save Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettingsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

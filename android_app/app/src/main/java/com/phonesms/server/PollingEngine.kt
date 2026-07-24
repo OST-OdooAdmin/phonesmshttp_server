@@ -74,7 +74,19 @@ class PollingEngine(
                         onLog("Retrieved ${response.pending.size} pending SMS tasks from Odoo")
                         for (task in response.pending) {
                             onLog("Processing task #${task.id} -> ${task.to}")
+                            
+                            val words = if (task.message.isBlank()) 0 else task.message.trim().split("\\s+".toRegex()).size
                             val result = SmsSender.sendSms(context, task.to, task.message)
+                            val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
+                            
+                            // Save to local persistent logs silently
+                            val logRecord = SmsLogRecord(
+                                recipient = task.to,
+                                message = task.message,
+                                wordCount = words,
+                                status = statusStr
+                            )
+                            SmsLogStorage.saveLog(context, logRecord)
                             
                             // Post receipt back to Odoo
                             try {
