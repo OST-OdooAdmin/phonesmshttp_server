@@ -5,9 +5,11 @@ import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
 import os
+import subprocess
 
 DB_FILE = "/root/sms_gateway.db"
 LOG_FILE = "/var/log/sms_gateway_activity.log"
+DEFAULT_RECIPIENT = "+6596780253"
 
 def log_activity(text):
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -85,7 +87,15 @@ def log_phone_dispatch(recipient, message, status="sent", detail=""):
     purge_old_logs()
     return task_id
 
+def trigger_server_startup_message():
+    """Triggered on server boot / service start: queues default startup test message"""
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    startup_msg = f"[SERVER STARTUP TRIGGER] Gateway Online at {now_str}"
+    task_id = add_sms_task(DEFAULT_RECIPIENT, startup_msg)
+    log_activity(f"🚀 SERVER STARTUP AUTO-TRIGGER -> Queued task #{task_id} for {DEFAULT_RECIPIENT}")
+
 def get_pending_tasks():
+    """Returns ONLY unpicked queued tasks (Once & Only Once pickup policy)"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute('''
@@ -102,7 +112,7 @@ def get_pending_tasks():
             "message": r[2]
         })
     if tasks:
-        log_activity(f"📡 Delivered {len(tasks)} pending tasks to polling phone.")
+        log_activity(f"📡 Delivered {len(tasks)} pending tasks to polling phone app.")
     return tasks
 
 def get_all_server_logs():
@@ -128,6 +138,7 @@ def get_all_server_logs():
     return logs
 
 def update_task_status(task_id, status, detail=""):
+    """Marks task as 'sent' so it is NEVER picked up again by the phone"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     new_state = 'sent' if status == 'sent' else 'failed'
@@ -154,6 +165,17 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             logs = get_all_server_logs()
             self._set_headers(200)
             self.wfile.write(json.dumps({"logs": logs}).encode('utf-8'))
+        elif self.path.startswith('/api/sms/trigger-startup'):
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            msg = f"[SERVER STARTUP TRIGGER] Gateway Online at {now_str}"
+            task_id = add_sms_task(DEFAULT_RECIPIENT, msg)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "status": "queued",
+                "task_id": task_id,
+                "recipient": DEFAULT_RECIPIENT,
+                "message": msg
+            }).encode('utf-8'))
         elif self.path == '/' or self.path == '/status':
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
@@ -225,8 +247,9 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Not Found"}).encode('utf-8'))
 
-def run_server(port=8069):
+def run_server(port=22):
     init_db()
+    trigger_server_startup_message()
     server_address = ('', port)
     httpd = HTTPServer(server_address, SmsGatewayRequestHandler)
     log_activity(f"🚀 SMS Gateway Server listening on port {port}...")
@@ -239,8 +262,8 @@ def run_server(port=8069):
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "add":
         init_db()
-        recipient = sys.argv[2] if len(sys.argv) > 2 else "+6596780253"
+        recipient = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_RECIPIENT
         message = sys.argv[3] if len(sys.argv) > 3 else f"hello world {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         add_sms_task(recipient, message)
     else:
-        run_server(8069)
+        run_server(22)

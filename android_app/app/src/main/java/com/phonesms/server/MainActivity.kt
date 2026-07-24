@@ -64,12 +64,12 @@ class MainActivity : ComponentActivity() {
     private val serverLogsState = mutableStateListOf<SmsLogRecord>()
     private val availableSimsState = mutableStateListOf<SimInfo>()
     private val selectedSubIdState = mutableStateOf<Int?>(null)
-    private val logFetchStatusState = mutableStateOf("Server logs synced.")
+    private val logFetchStatusState = mutableStateOf("Server sync running.")
 
     // Persistent Settings State
     private val serverUrlState = mutableStateOf("")
     private val apiKeyState = mutableStateOf("")
-    private val isPollingEnabledState = mutableStateOf(false)
+    private val isPollingEnabledState = mutableStateOf(true)
 
     private val httpClient by lazy {
         HttpClient(CIO) {
@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
             smsService = binder.getService()
             isBound = true
 
-            if (isPollingEnabledState.value && serverUrlState.value.isNotBlank()) {
+            if (serverUrlState.value.isNotBlank()) {
                 startPollingService()
             }
         }
@@ -153,9 +153,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Auto fetch on launch
+                    // Auto fetch on launch and start polling
                     LaunchedEffect(Unit) {
                         autoFetchLogs()
+                        if (serverUrlState.value.isNotBlank()) {
+                            startPollingService()
+                        }
                     }
 
                     SmsGatewayApp(
@@ -215,7 +218,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                         Log.d("MainActivity", "Posted dispatch log to server successfully.")
-                                        // Auto refresh logs after posting
                                         launch(Dispatchers.Main) {
                                             autoFetchLogs()
                                         }
@@ -233,8 +235,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Auto sync server logs when app is brought to foreground
         if (serverUrlState.value.isNotBlank()) {
+            startPollingService()
             CoroutineScope(Dispatchers.Main).launch {
                 val engine = PollingEngine(this@MainActivity) {}
                 val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
@@ -262,9 +264,9 @@ class MainActivity : ComponentActivity() {
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
-        serverUrlState.value = prefs.getString("server_url", "http://192.168.0.106:8069") ?: "http://192.168.0.106:8069"
+        serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:2222") ?: "http://115.135.158.84:2222"
         apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
-        isPollingEnabledState.value = prefs.getBoolean("polling_enabled", false)
+        isPollingEnabledState.value = prefs.getBoolean("polling_enabled", true)
     }
 
     private fun saveSettings(url: String, key: String, enabled: Boolean) {
@@ -582,7 +584,7 @@ fun SmsGatewayApp(
                     OutlinedTextField(
                         value = tempUrl,
                         onValueChange = { tempUrl = it },
-                        placeholder = { Text("http://192.168.0.106:8069") },
+                        placeholder = { Text("http://115.135.158.84:2222") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
