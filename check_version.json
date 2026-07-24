@@ -1,0 +1,3 @@
+{
+  "cmd": "odoo --version 2>/dev/null || dpkg -l | grep odoo 2>/dev/null || echo 'ODOO_VERSION_CHECK'"
+}

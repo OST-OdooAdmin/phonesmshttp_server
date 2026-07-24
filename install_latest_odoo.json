@@ -1,0 +1,3 @@
+{
+  "cmd": "echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] http://nightly.odoo.com/18.0/nightly/deb/ ./' > /etc/apt/sources.list.d/odoo.list && apt-get update -qq && apt-get install -y --only-upgrade odoo 2>/dev/null || apt-get install -y odoo && systemctl restart odoo && echo 'ODOO_LATEST_INSTALLED'"
+}
