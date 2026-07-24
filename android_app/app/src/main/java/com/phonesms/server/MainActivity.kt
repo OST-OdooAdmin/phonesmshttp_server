@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,10 +34,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.serialization.gson.gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+data class PhoneDispatchPayload(
+    val to: String,
+    val message: String,
+    val status: String,
+    val detail: String
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -52,6 +71,14 @@ class MainActivity : ComponentActivity() {
     private val serverUrlState = mutableStateOf("")
     private val apiKeyState = mutableStateOf("")
     private val isPollingEnabledState = mutableStateOf(false)
+
+    private val httpClient by lazy {
+        HttpClient(CIO) {
+            install(ContentNegotiation) {
+                gson()
+            }
+        }
+    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -156,8 +183,33 @@ class MainActivity : ComponentActivity() {
                             }
                             
                             val result = SmsSender.sendSms(this, recipient, message, targetSubId = selectedSubIdState.value)
+                            val statusStr = if (result.success) "sent" else "failed"
                             Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
                             smsService?.addLog("Manual SMS -> $recipient [${if (result.success) "SUCCESS" else "FAILED"}]")
+
+                            // Log directly to Server's /var/log/sms_gateway_activity.log
+                            if (serverUrlState.value.isNotBlank()) {
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        val logUrl = if (serverUrlState.value.endsWith("/")) "${serverUrlState.value}api/sms/log-dispatch" else "${serverUrlState.value}/api/sms/log-dispatch"
+                                        httpClient.post(logUrl) {
+                                            header("X-Api-Key", apiKeyState.value)
+                                            contentType(ContentType.Application.Json)
+                                            setBody(
+                                                PhoneDispatchPayload(
+                                                    to = recipient,
+                                                    message = message,
+                                                    status = statusStr,
+                                                    detail = result.message
+                                                )
+                                            )
+                                        }
+                                        Log.d("MainActivity", "Posted dispatch log to server successfully.")
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "Failed to post dispatch log to server", e)
+                                    }
+                                }
+                            }
                         }
                     )
                 }

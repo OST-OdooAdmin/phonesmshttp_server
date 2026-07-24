@@ -68,6 +68,23 @@ def add_sms_task(recipient, message):
     purge_old_logs()
     return task_id
 
+def log_phone_dispatch(recipient, message, status="sent", detail=""):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_state = 'sent' if status == 'sent' or status == 'SUCCESS' else 'failed'
+    cursor.execute('''
+        INSERT INTO sms_queue (recipient, message, state, detail, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (recipient, message, new_state, detail, now_str))
+    task_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    log_activity(f"📱 PHONE DIRECT DISPATCH Task #{task_id} -> {recipient}: '{message}' [{new_state.upper()}] ({detail})")
+    purge_old_logs()
+    return task_id
+
 def get_pending_tasks():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -182,6 +199,18 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             else:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Missing task_id"}).encode('utf-8'))
+        elif self.path.startswith('/api/sms/log-dispatch'):
+            recipient = payload.get('to') or payload.get('recipient')
+            message = payload.get('message')
+            status = payload.get('status', 'sent')
+            detail = payload.get('detail', 'Sent via Phone App')
+            if recipient and message:
+                task_id = log_phone_dispatch(recipient, message, status, detail)
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"result": "ok", "task_id": task_id}).encode('utf-8'))
+            else:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Missing 'to' or 'message'"}).encode('utf-8'))
         elif self.path.startswith('/queue-sms'):
             recipient = payload.get('to')
             message = payload.get('message')
