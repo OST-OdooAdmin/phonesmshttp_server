@@ -88,6 +88,28 @@ def get_pending_tasks():
         log_activity(f"📡 Delivered {len(tasks)} pending tasks to polling phone.")
     return tasks
 
+def get_all_server_logs():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT recipient, message, state, detail, created_at FROM sms_queue ORDER BY id DESC LIMIT 200
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    logs = []
+    for r in rows:
+        status_str = "SUCCESS" if r[2] == 'sent' else ("FAILED: " + r[3] if r[2] == 'failed' else "QUEUED")
+        words = len(r[1].split()) if r[1] else 0
+        logs.append({
+            "recipient": r[0],
+            "message": r[1],
+            "status": status_str,
+            "timestamp": r[4],
+            "wordCount": words
+        })
+    return logs
+
 def update_task_status(task_id, status, detail=""):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -111,6 +133,10 @@ class SmsGatewayRequestHandler(BaseHTTPRequestHandler):
             tasks = get_pending_tasks()
             self._set_headers(200)
             self.wfile.write(json.dumps({"pending": tasks}).encode('utf-8'))
+        elif self.path.startswith('/api/sms/logs'):
+            logs = get_all_server_logs()
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"logs": logs}).encode('utf-8'))
         elif self.path == '/' or self.path == '/status':
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()

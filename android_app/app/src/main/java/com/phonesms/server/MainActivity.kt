@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,7 +43,7 @@ class MainActivity : ComponentActivity() {
     private var smsService: SmsForegroundService? = null
     private var isBound = false
 
-    private val savedLogsState = mutableStateListOf<SmsLogRecord>()
+    private val serverLogsState = mutableStateListOf<SmsLogRecord>()
     private val availableSimsState = mutableStateListOf<SimInfo>()
     private val selectedSubIdState = mutableStateOf<Int?>(null)
 
@@ -56,7 +58,6 @@ class MainActivity : ComponentActivity() {
             smsService = binder.getService()
             isBound = true
 
-            // Restore polling service if enabled
             if (isPollingEnabledState.value && serverUrlState.value.isNotBlank()) {
                 startPollingService()
             }
@@ -84,9 +85,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         checkAndRequestPermissions()
 
-        // Load Settings, Logs & SIM cards
         loadSettings()
-        reloadLogs()
         reloadSimCards()
 
         // Start & Bind Foreground Service
@@ -111,14 +110,24 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    val scope = rememberCoroutineScope()
+
                     SmsGatewayApp(
-                        logs = savedLogsState,
+                        serverLogs = serverLogsState,
                         availableSims = availableSimsState,
                         selectedSubId = selectedSubIdState.value,
                         serverUrl = serverUrlState.value,
                         apiKey = apiKeyState.value,
                         isPollingEnabled = isPollingEnabledState.value,
                         onSelectSim = { subId -> selectedSubIdState.value = subId },
+                        onFetchServerLogs = {
+                            scope.launch {
+                                val engine = PollingEngine(this@MainActivity) {}
+                                val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
+                                serverLogsState.clear()
+                                serverLogsState.addAll(logs)
+                            }
+                        },
                         onSaveSettings = { url, key, enabled ->
                             serverUrlState.value = url
                             apiKeyState.value = key
@@ -139,28 +148,12 @@ class MainActivity : ComponentActivity() {
                             }
                             
                             val result = SmsSender.sendSms(this, recipient, message, targetSubId = selectedSubIdState.value)
-                            val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
-                            
-                            val logRecord = SmsLogRecord(
-                                recipient = recipient,
-                                message = message,
-                                wordCount = words,
-                                status = statusStr
-                            )
-                            SmsLogStorage.saveLog(this, logRecord)
-                            reloadLogs()
-
                             Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
-                            smsService?.addLog("Manual SMS -> $recipient [$statusStr]")
+                            smsService?.addLog("Manual SMS -> $recipient [${if (result.success) "SUCCESS" else "FAILED"}]")
                         },
                         onExportLogs = {
                             val msg = SmsLogStorage.exportLogsToCSV(this)
                             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                        },
-                        onClearLogs = {
-                            SmsLogStorage.clearLogs(this)
-                            reloadLogs()
-                            Toast.makeText(this, "Log history cleared.", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -198,11 +191,6 @@ class MainActivity : ComponentActivity() {
             .putString("api_key", key)
             .putBoolean("polling_enabled", enabled)
             .apply()
-    }
-
-    private fun reloadLogs() {
-        savedLogsState.clear()
-        savedLogsState.addAll(SmsLogStorage.getLogs(this))
     }
 
     private fun reloadSimCards() {
@@ -246,17 +234,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmsGatewayApp(
-    logs: List<SmsLogRecord>,
+    serverLogs: List<SmsLogRecord>,
     availableSims: List<SimInfo>,
     selectedSubId: Int?,
     serverUrl: String,
     apiKey: String,
     isPollingEnabled: Boolean,
     onSelectSim: (Int) -> Unit,
+    onFetchServerLogs: () -> Unit,
     onSaveSettings: (String, String, Boolean) -> Unit,
     onSendSms: (String, String) -> Unit,
-    onExportLogs: () -> Unit,
-    onClearLogs: () -> Unit
+    onExportLogs: () -> Unit
 ) {
     var recipientPhone by remember { mutableStateOf("") }
     var messageText by remember { mutableStateOf("") }
@@ -268,6 +256,12 @@ fun SmsGatewayApp(
     val isWordCountExceeded = wordCount > 500
 
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1) {
+            onFetchServerLogs()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -290,7 +284,7 @@ fun SmsGatewayApp(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = if (isPollingEnabled) "🟢 Local Server Sync (1 min)" else "⚪ Offline / Standalone",
+                    text = if (isPollingEnabled) "🟢 Server Sync Active (1 min)" else "⚪ Offline / Standalone",
                     fontSize = 11.sp,
                     color = if (isPollingEnabled) Color(0xFF81C784) else Color.Gray
                 )
@@ -350,7 +344,7 @@ fun SmsGatewayApp(
             }
         }
 
-        // Navigation Tabs (Send SMS vs View Logs)
+        // Navigation Tabs (Send SMS vs View Server Logs)
         TabRow(selectedTabIndex = selectedTab) {
             Tab(
                 selected = selectedTab == 0,
@@ -360,7 +354,7 @@ fun SmsGatewayApp(
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
-                text = { Text("📋 Logs (${logs.size})") }
+                text = { Text("📋 Server Logs (${serverLogs.size})") }
             )
         }
 
@@ -447,46 +441,36 @@ fun SmsGatewayApp(
                 }
             }
         } else {
-            // TAB 2: LOGS VIEW & DOWNLOAD
+            // TAB 2: SERVER LOGS VIEW (FETCHED DIRECTLY FROM SERVER)
             Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Sent Messages Log", fontWeight = FontWeight.Bold)
-                    Row {
-                        Button(
-                            onClick = onExportLogs,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text("📥 Download CSV", fontSize = 12.sp)
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        TextButton(onClick = onClearLogs) {
-                            Text("Clear", color = Color.Red, fontSize = 12.sp)
-                        }
+                    Text(text = "Central Server Logs", fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onFetchServerLogs) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh Logs", tint = Color(0xFF64B5F6))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                if (logs.isEmpty()) {
+                if (serverLogs.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "No SMS dispatch logs recorded yet.", color = Color.Gray)
+                        Text(text = "No server logs found (or server not synced).", color = Color.Gray)
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(logs) { log ->
+                        items(serverLogs) { log ->
                             SmsLogCard(log)
                         }
                     }
@@ -506,7 +490,7 @@ fun SmsGatewayApp(
             title = { Text("⚙️ Local Server Settings", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(text = "Local Server URL (JSON API):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "Local Server Base URL:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = tempUrl,
                         onValueChange = { tempUrl = it },
@@ -531,7 +515,7 @@ fun SmsGatewayApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Enable Local Server Sync", fontSize = 13.sp)
+                        Text(text = "Enable Server Sync", fontSize = 13.sp)
                         Switch(
                             checked = tempEnabled,
                             onCheckedChange = { tempEnabled = it }
@@ -563,7 +547,7 @@ fun SmsLogCard(log: SmsLogRecord) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (log.status.startsWith("SUCCESS")) Color(0xFF1B2E1B) else Color(0xFF331B1B)
+            containerColor = if (log.status.startsWith("SUCCESS") || log.status.lowercase() == "sent") Color(0xFF1B2E1B) else Color(0xFF331B1B)
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -581,7 +565,7 @@ fun SmsLogCard(log: SmsLogRecord) {
                     text = log.status,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
-                    color = if (log.status.startsWith("SUCCESS")) Color(0xFF81C784) else Color(0xFFE57373)
+                    color = if (log.status.startsWith("SUCCESS") || log.status.lowercase() == "sent") Color(0xFF81C784) else Color(0xFFE57373)
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))

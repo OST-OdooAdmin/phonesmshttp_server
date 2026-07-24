@@ -30,6 +30,10 @@ data class PendingSmsResponse(
     val pending: List<SmsTask>
 )
 
+data class ServerLogsResponse(
+    val logs: List<SmsLogRecord>
+)
+
 data class SmsStatusReport(
     val task_id: Int,
     val status: String,
@@ -48,6 +52,20 @@ class PollingEngine(
             install(ContentNegotiation) {
                 gson()
             }
+        }
+    }
+
+    suspend fun fetchServerLogs(serverUrl: String, apiKey: String): List<SmsLogRecord> {
+        if (serverUrl.isBlank()) return emptyList()
+        val logsUrl = if (serverUrl.endsWith("/")) "${serverUrl}api/sms/logs" else "$serverUrl/api/sms/logs"
+        return try {
+            val response: ServerLogsResponse = httpClient.get(logsUrl) {
+                header("X-Api-Key", apiKey)
+            }.body()
+            response.logs
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch server logs", e)
+            emptyList()
         }
     }
 
@@ -75,20 +93,10 @@ class PollingEngine(
                         for (task in response.pending) {
                             onLog("Processing task #${task.id} -> ${task.to}")
                             
-                            val words = if (task.message.isBlank()) 0 else task.message.trim().split("\\s+".toRegex()).size
                             val result = SmsSender.sendSms(context, task.to, task.message)
-                            val statusStr = if (result.success) "SUCCESS" else "FAILED: ${result.message}"
+                            val statusStr = if (result.success) "sent" else "failed"
                             
-                            // Save to local persistent log on phone
-                            val logRecord = SmsLogRecord(
-                                recipient = task.to,
-                                message = task.message,
-                                wordCount = words,
-                                status = statusStr
-                            )
-                            SmsLogStorage.saveLog(context, logRecord)
-                            
-                            // Post status receipt JSON back to server
+                            // Post status receipt JSON back to server (No phone local storage!)
                             try {
                                 httpClient.post(statusUrl) {
                                     header("X-Api-Key", apiKey)
@@ -96,7 +104,7 @@ class PollingEngine(
                                     setBody(
                                         SmsStatusReport(
                                             task_id = task.id,
-                                            status = if (result.success) "sent" else "failed",
+                                            status = statusStr,
                                             detail = result.message
                                         )
                                     )
