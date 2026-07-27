@@ -22,6 +22,7 @@ AI Odoo Studio Builder (Community Replacement for Enterprise Studio):
         'web.assets_backend': [
             'odoo_studio_builder/static/src/css/jemi_floating_bot.css',
             'odoo_studio_builder/static/src/js/jemi_floating_bot.js',
+            'odoo_studio_builder/static/src/xml/jemi_floating_bot_templates.xml',
         ],
     },
     'installable': True,
