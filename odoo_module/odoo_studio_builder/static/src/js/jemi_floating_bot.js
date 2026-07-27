@@ -1,85 +1,87 @@
 /** @odoo-module **/
 
-import { Component, xml, useState } from "@odoo/owl";
+import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { rpc } from "@web/core/network/rpc";
 
 export class JemiFloatingBot extends Component {
-    static template = xml`
-        <div class="jemi-floating-container">
-            <!-- Floating AI Bot Button Icon -->
-            <div class="jemi-floating-btn" t-on-click="toggleChat">
-                🤖
-            </div>
-            <!-- Floating Chat Window Drawer (OPEN BY DEFAULT) -->
-            <div t-if="state.isOpen" class="jemi-chat-window">
-                <div class="jemi-chat-header">
-                    <span>🤖 Jemi (AI Studio Assistant)</span>
-                    <button class="btn btn-sm text-white" t-on-click="toggleChat">✖</button>
-                </div>
-                <div class="jemi-chat-body">
-                    <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
-                        <div t-attf-class="jemi-msg {{ msg.isUser ? 'jemi-msg-user' : 'jemi-msg-bot' }}">
-                            <div style="white-space: pre-wrap;" t-esc="msg.text"/>
-                        </div>
-                    </t>
-                </div>
-                <div class="jemi-chat-footer">
-                    <input class="jemi-chat-input" type="text" placeholder="Ask Jemi anything or describe your app idea..." t-model="state.inputMsg" t-on-keydown="onKeyDown"/>
-                    <button class="btn btn-sm btn-primary rounded-circle" t-on-click="sendMessage">➔</button>
-                </div>
-            </div>
-        </div>
-    `;
+    static template = "odoo_studio_builder.JemiFloatingBotTemplate";
 
     setup() {
-        this.orm = useService("orm");
         this.state = useState({
             isOpen: true,
-            inputMsg: "",
+            isExpanded: false,
+            inputMessage: "",
             messages: [
-                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, or custom app requirements)!", isUser: false }
-            ]
+                {
+                    sender: "bot",
+                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, or custom app requirements)!"
+                }
+            ],
+            isLoading: false
         });
+
+        onMounted(() => {
+            this.verifyAccountCredentials();
+        });
+    }
+
+    async verifyAccountCredentials() {
+        try {
+            const res = await rpc("/web/dataset/call_kw/res.config.settings/verify_gemini_credentials", {
+                model: "res.config.settings",
+                method: "verify_gemini_credentials",
+                args: [],
+                kwargs: {}
+            });
+            if (res && res.is_valid) {
+                console.log("[Jemi Bot] Account verified:", res);
+            }
+        } catch (e) {
+            console.error("[Jemi Bot] RPC Verification error:", e);
+        }
     }
 
     toggleChat() {
         this.state.isOpen = !this.state.isOpen;
     }
 
+    toggleExpand() {
+        this.state.isExpanded = !this.state.isExpanded;
+    }
+
     async sendMessage() {
-        if (!this.state.inputMsg.trim()) return;
-        const userText = this.state.inputMsg;
-        this.state.messages.push({ id: Date.now(), text: userText, isUser: true });
-        this.state.inputMsg = "";
+        const text = this.state.inputMessage.strip ? this.state.inputMessage.strip() : this.state.inputMessage.trim();
+        if (!text || this.state.isLoading) return;
 
-        // Call backend action_chat_with_gemini RPC method
+        this.state.messages.push({ sender: "user", text: text });
+        this.state.inputMessage = "";
+        this.state.isLoading = true;
+
         try {
-            const result = await this.orm.call("res.config.settings", "action_chat_with_gemini", [userText]);
-
-            if (result && result.response) {
-                this.state.messages.push({
-                    id: Date.now() + 1,
-                    text: result.response,
-                    isUser: false
-                });
-            } else {
-                this.state.messages.push({
-                    id: Date.now() + 1,
-                    text: "🤖 Jemi: I received your request! Click AI Studio on your top menu bar to build your app.",
-                    isUser: false
-                });
-            }
-        } catch (e) {
-            this.state.messages.push({
-                id: Date.now() + 1,
-                text: `🤖 Jemi (AI Assistant):\n\nI processed your request "${userText}". Click AI Studio on top menu bar to inspect custom fields!`,
-                isUser: false
+            const res = await rpc("/web/dataset/call_kw/res.config.settings/action_chat_with_gemini", {
+                model: "res.config.settings",
+                method: "action_chat_with_gemini",
+                args: [text],
+                kwargs: {}
             });
+
+            if (res && res.response) {
+                this.state.messages.push({ sender: "bot", text: res.response });
+            } else {
+                this.state.messages.push({ sender: "bot", text: "⚠️ No response received from Gemini API." });
+            }
+        } catch (error) {
+            this.state.messages.push({
+                sender: "bot",
+                text: "⚠️ Connection Error: " + (error.message || "Failed to reach Odoo server.")
+            });
+        } finally {
+            this.state.isLoading = false;
         }
     }
 
-    onKeyDown(ev) {
+    onKeyPress(ev) {
         if (ev.key === "Enter") {
             this.sendMessage();
         }

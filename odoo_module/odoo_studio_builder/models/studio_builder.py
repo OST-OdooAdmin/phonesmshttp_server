@@ -50,7 +50,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Dynamic live AI call to Google Gemini / Antigravity engine. Zero preset text."""
+        """Dynamic live AI call to Google Gemini / Antigravity engine across v1 and v1beta API versions."""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='gemini_pro')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -67,7 +67,6 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         ssl_ctx = ssl._create_unverified_context()
 
-        # Dynamic live prompt sent directly to Google Gemini API
         system_instruction = (
             f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
             f"Project ID: {account_id}, User ID: {user_id}. "
@@ -85,11 +84,19 @@ class OdooStudioConfigSettings(models.TransientModel):
         }
 
         json_data = json.dumps(payload).encode('utf-8')
-        model_endpoints = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-pro"]
+
+        # List of API URL endpoints covering v1 and v1beta with various model names
+        api_urls = [
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+        ]
+
         errors = []
 
-        for model in model_endpoints:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        for url in api_urls:
             headers = {'Content-Type': 'application/json'}
             try:
                 req = urllib.request.Request(url, data=json_data, headers=headers)
@@ -104,9 +111,9 @@ class OdooStudioConfigSettings(models.TransientModel):
                             return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
             except urllib.error.HTTPError as he:
                 err_body = he.read().decode('utf-8') if he.fp else str(he)
-                errors.append(f"Model '{model}' HTTP {he.code}: {err_body[:150]}")
+                errors.append(f"URL '{url.split('?')[0]}' HTTP {he.code}: {err_body[:120]}")
             except Exception as e:
-                errors.append(f"Model '{model}' Error: {str(e)[:150]}")
+                errors.append(f"URL '{url.split('?')[0]}' Error: {str(e)[:120]}")
 
         # Return exact diagnostic error from Google API if request fails
         err_report = "\n".join(errors[:2])

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="odoo_studio_builder.JemiFloatingBotTemplate">
+        <div class="jemi-bot-container">
+            <!-- Floating Launcher Button 🤖 -->
+            <div class="jemi-floating-btn" t-on-click="toggleChat" title="Chat with Jemi (AI Studio Assistant)">
+                🤖
+            </div>
+
+            <!-- Floating Chat Drawer Window -->
+            <div t-if="state.isOpen" t-attf-class="jemi-chat-drawer #{state.isExpanded ? 'is-expanded' : ''}">
+                <!-- Header -->
+                <div class="jemi-chat-header">
+                    <span>🤖 Jemi (AI Studio Assistant)</span>
+                    <div class="jemi-chat-header-actions">
+                        <button class="jemi-action-btn" t-on-click="toggleExpand" t-att-title="state.isExpanded ? 'Contract Window' : 'Expand Window'">
+                            <t t-if="state.isExpanded">🗗</t>
+                            <t t-else="">⤢</t>
+                        </button>
+                        <button class="jemi-action-btn" t-on-click="toggleChat" title="Close Window">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Body -->
+                <div class="jemi-chat-body">
+                    <t t-foreach="state.messages" t-as="msg" t-key="msg_index">
+                        <div t-attf-class="jemi-msg #{msg.sender == 'user' ? 'jemi-msg-user' : 'jemi-msg-bot'}">
+                            <t t-out="msg.text"/>
+                        </div>
+                    </t>
+                    <div t-if="state.isLoading" class="jemi-msg jemi-msg-bot">
+                        🤖 Jemi is thinking... 💭
+                    </div>
+                </div>
+
+                <!-- Input Footer -->
+                <div class="jemi-chat-footer">
+                    <input type="text"
+                           class="jemi-input"
+                           placeholder="Ask Jemi anything or describe your app idea..."
+                           t-model="state.inputMessage"
+                           t-on-keydown="onKeyPress"/>
+                    <button class="jemi-send-btn" t-on-click="sendMessage">
+                        ➔
+                    </button>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>
