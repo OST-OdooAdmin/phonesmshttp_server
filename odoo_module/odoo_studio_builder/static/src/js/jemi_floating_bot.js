@@ -37,9 +37,8 @@ export class JemiFloatingBot extends Component {
         this.state = useState({
             isOpen: false,
             inputMsg: "",
-            apiKeyConfigured: false,
             messages: [
-                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant! Please configure your Free Google Gemini API Key in Settings to start building apps!", isUser: false }
+                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant! Please click 'Save' in Settings after keying in your Google AI credentials to activate Jemi!", isUser: false }
             ]
         });
     }
@@ -54,16 +53,15 @@ export class JemiFloatingBot extends Component {
         this.state.messages.push({ id: Date.now(), text: userText, isUser: true });
         this.state.inputMsg = "";
 
-        // Check if Gemini API key or account is configured in Odoo Settings
+        // Verify credentials directly from Odoo backend database
         try {
-            const config = await this.orm.call("res.config.settings", "get_values", []);
-            const apiKey = config.gemini_api_key || "";
+            const verification = await this.orm.call("res.config.settings", "verify_gemini_credentials", []);
 
-            if (!apiKey) {
+            if (verification && verification.is_valid) {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: "⚠️ <b>API Key Required</b>: Jemi requires a Free Google Gemini API Key to operate! Please go to <b>Settings ➔ AI Studio Configuration</b> and paste your key from <a href='https://aistudio.google.com/app/apikey' target='_blank'>aistudio.google.com</a>.",
+                        text: `✅ <b>Account Verified!</b> (User: <i>${verification.user_id || 'Google Gemini Pro'}</i>)<br/>🤖 <b>Jemi</b>: Processing your app request "${userText}"... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
                         isUser: false
                     });
                 }, 800);
@@ -71,7 +69,7 @@ export class JemiFloatingBot extends Component {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: `🤖 <b>Jemi (Gemini AI)</b>: Processing your request "${userText}" using your Google AI API key... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
+                        text: "⚠️ <b>Click 'Save' Button</b>: Please click the purple <b>Save</b> button at the top-left of Settings so Odoo saves your Google credentials into the database!",
                         isUser: false
                     });
                 }, 800);

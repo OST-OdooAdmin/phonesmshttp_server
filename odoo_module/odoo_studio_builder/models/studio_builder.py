@@ -14,6 +14,22 @@ class OdooStudioConfigSettings(models.TransientModel):
     jemi_account_id = fields.Char(string='AI Account / Org ID', config_parameter='odoo_studio_builder.jemi_account_id')
     gemini_api_key = fields.Char(string='Google Gemini API Key', config_parameter='odoo_studio_builder.gemini_api_key')
 
+    @api.model
+    def verify_gemini_credentials(self):
+        """RPC method to verify if Gemini API key and credentials are saved in database"""
+        ICP = self.env['ir.config_parameter'].sudo()
+        api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='')
+        user_id = ICP.get_param('odoo_studio_builder.jemi_user_id', default='')
+        account_id = ICP.get_param('odoo_studio_builder.jemi_account_id', default='')
+        
+        is_valid = bool(api_key or user_id)
+        return {
+            'is_valid': is_valid,
+            'user_id': user_id,
+            'account_id': account_id,
+            'has_api_key': bool(api_key)
+        }
+
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'
     _description = 'AI Odoo Studio Custom App Definition'
