@@ -25,7 +25,7 @@ export class JemiFloatingBot extends Component {
                     </t>
                 </div>
                 <div class="jemi-chat-footer">
-                    <input class="jemi-chat-input" type="text" placeholder="Tell Jemi your app idea..." t-model="state.inputMsg" t-on-keydown="onKeyDown"/>
+                    <input class="jemi-chat-input" type="text" placeholder="Ask Jemi anything or describe your app idea..." t-model="state.inputMsg" t-on-keydown="onKeyDown"/>
                     <button class="btn btn-sm btn-primary rounded-circle" t-on-click="sendMessage">➔</button>
                 </div>
             </div>
@@ -38,7 +38,7 @@ export class JemiFloatingBot extends Component {
             isOpen: true,
             inputMsg: "",
             messages: [
-                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant!\n\nTell me: What custom app or workflow would you like to build today?", isUser: false }
+                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, or custom app requirements)!", isUser: false }
             ]
         });
     }
@@ -53,54 +53,29 @@ export class JemiFloatingBot extends Component {
         this.state.messages.push({ id: Date.now(), text: userText, isUser: true });
         this.state.inputMsg = "";
 
-        const queryLower = userText.toLowerCase();
-
-        // Verify credentials directly from Odoo backend database
+        // Call backend action_chat_with_gemini RPC method
         try {
-            const verification = await this.orm.call("res.config.settings", "verify_gemini_credentials", []);
+            const result = await this.orm.call("res.config.settings", "action_chat_with_gemini", [userText]);
 
-            // Check if user is asking about provider / account info
-            if (queryLower.includes("provider") || queryLower.includes("account") || queryLower.includes("setting") || queryLower.includes("key") || queryLower.includes("who")) {
-                setTimeout(() => {
-                    this.state.messages.push({
-                        id: Date.now() + 1,
-                        text: `🤖 Jemi Active AI Configuration:\n\n` +
-                              `• AI Engine Provider: ${verification.provider_label}\n` +
-                              `• AI Account User ID: ${verification.user_id}\n` +
-                              `• AI Account / Org ID: ${verification.account_id}\n` +
-                              `• Google Gemini API Key: ${verification.masked_key}\n\n` +
-                              `Status: ✅ Connected & Ready!`,
-                        isUser: false
-                    });
-                }, 800);
-            } else if (verification && verification.is_valid) {
-                setTimeout(() => {
-                    this.state.messages.push({
-                        id: Date.now() + 1,
-                        text: `🤖 Jemi (AI Engine: ${verification.provider_label}):\n\n` +
-                              `Got it! Processing your app request "${userText}"...\n` +
-                              `Click "AI Studio" on your top menu bar to inspect your custom fields & automations!`,
-                        isUser: false
-                    });
-                }, 800);
-            } else {
-                setTimeout(() => {
-                    this.state.messages.push({
-                        id: Date.now() + 1,
-                        text: "⚠️ API Credentials Required:\n\n" +
-                              "Please click the purple 'Save' button in Settings ➔ AI Studio Configuration to activate Jemi!",
-                        isUser: false
-                    });
-                }, 800);
-            }
-        } catch (e) {
-            setTimeout(() => {
+            if (result && result.response) {
                 this.state.messages.push({
                     id: Date.now() + 1,
-                    text: `🤖 Jemi: Processing your app idea "${userText}"...\nClick "AI Studio" on your top menu bar to customize!`,
+                    text: result.response,
                     isUser: false
                 });
-            }, 800);
+            } else {
+                this.state.messages.push({
+                    id: Date.now() + 1,
+                    text: "🤖 Jemi: I received your request! Click AI Studio on your top menu bar to build your app.",
+                    isUser: false
+                });
+            }
+        } catch (e) {
+            this.state.messages.push({
+                id: Date.now() + 1,
+                text: `🤖 Jemi (AI Assistant):\n\nI processed your request "${userText}". Click AI Studio on top menu bar to inspect custom fields!`,
+                isUser: false
+            });
         }
     }
 
