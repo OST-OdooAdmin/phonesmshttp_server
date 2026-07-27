@@ -16,18 +16,29 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def verify_gemini_credentials(self):
-        """RPC method to verify if Gemini API key and credentials are saved in database"""
+        """RPC method to verify and retrieve configured AI provider and account details"""
         ICP = self.env['ir.config_parameter'].sudo()
+        provider = ICP.get_param('odoo_studio_builder.ai_provider', default='gemini_pro')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='')
         user_id = ICP.get_param('odoo_studio_builder.jemi_user_id', default='')
         account_id = ICP.get_param('odoo_studio_builder.jemi_account_id', default='')
         
-        is_valid = bool(api_key or user_id)
+        provider_labels = {
+            'gemini_pro': 'Google Gemini 1.5 Pro (Google One AI Pro)',
+            'antigravity': 'Google Antigravity AI Engine',
+            'openai': 'OpenAI GPT-4o'
+        }
+
+        masked_key = (api_key[:6] + '...' + api_key[-4:]) if len(api_key) > 10 else ('Configured' if api_key else 'Not Set')
+
         return {
-            'is_valid': is_valid,
-            'user_id': user_id,
-            'account_id': account_id,
-            'has_api_key': bool(api_key)
+            'is_valid': bool(api_key or user_id),
+            'provider': provider,
+            'provider_label': provider_labels.get(provider, 'Google Gemini 1.5 Pro'),
+            'user_id': user_id or 'Not Configured',
+            'account_id': account_id or 'Not Configured',
+            'has_api_key': bool(api_key),
+            'masked_key': masked_key
         }
 
 class OdooStudioApp(models.Model):
@@ -56,7 +67,7 @@ class OdooStudioApp(models.Model):
         return records
 
     def _initialize_jemi_welcome_message(self):
-        """Sends welcome message from AI Bot Jemi into Chatter & Discuss Channel"""
+        """Sends welcome message from AI Bot Jemi into Chatter"""
         jemi_partner = self.env['res.partner'].sudo().search([('name', '=', 'Jemi (AI Studio Assistant)')], limit=1)
         if not jemi_partner:
             jemi_partner = self.env['res.partner'].sudo().create({
@@ -66,10 +77,10 @@ class OdooStudioApp(models.Model):
             })
         
         welcome_msg = _(
-            "🤖 <b>Jemi (AI Studio Assistant)</b>: Hi! I am <b>Jemi</b>, your floating AI Studio Module Builder Bot!<br/><br/>"
-            "I am ready to build custom Odoo modules tailored to your needs.<br/>"
-            "Tell me: <b>What app or workflow would you like to build today?</b><br/>"
-            "<i>(e.g., Field Service Dispatch, Inventory SMS Tracker, Customer Approval System)</i>"
+            "🤖 Jemi (AI Studio Assistant): Hi! I am Jemi, your floating AI Studio Module Builder Bot!\n\n"
+            "I am ready to build custom Odoo modules tailored to your needs.\n"
+            "Tell me: What app or workflow would you like to build today?\n"
+            "(e.g., Field Service Dispatch, Inventory SMS Tracker, Customer Approval System)"
         )
         self.message_post(body=welcome_msg, author_id=jemi_partner.id)
 
@@ -79,8 +90,8 @@ class OdooStudioApp(models.Model):
         self.state = 'guided_chat'
         jemi_partner = self.env['res.partner'].sudo().search([('name', '=', 'Jemi (AI Studio Assistant)')], limit=1)
         step_msg = _(
-            "<b>Jemi</b>: Step 1 of 3: What custom fields do you need for <b>%s</b>?<br/>"
-            "Allowed field types: <i>Text, Monetary, Selection, Signature, Image, Date, Attachments</i>."
+            "Jemi: Step 1 of 3: What custom fields do you need for %s?\n"
+            "Allowed field types: Text, Monetary, Selection, Signature, Image, Date, Attachments."
         ) % self.name
         self.message_post(body=step_msg, author_id=jemi_partner.id if jemi_partner else False)
 
@@ -89,7 +100,7 @@ class OdooStudioApp(models.Model):
         for rec in self:
             rec.state = 'generated'
             jemi_partner = self.env['res.partner'].sudo().search([('name', '=', 'Jemi (AI Studio Assistant)')], limit=1)
-            success_msg = _("🎉 <b>Jemi</b>: Your custom module <b>'%s'</b> has been successfully generated and compiled into Odoo!") % rec.name
+            success_msg = _("🎉 Jemi: Your custom module '%s' has been successfully generated and compiled into Odoo!") % rec.name
             rec.message_post(body=success_msg, author_id=jemi_partner.id if jemi_partner else False)
 
 class OdooStudioField(models.Model):

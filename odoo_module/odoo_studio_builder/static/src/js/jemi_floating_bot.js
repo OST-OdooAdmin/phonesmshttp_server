@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, xml, useState, onMounted } from "@odoo/owl";
+import { Component, xml, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -20,7 +20,7 @@ export class JemiFloatingBot extends Component {
                 <div class="jemi-chat-body">
                     <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
                         <div t-attf-class="jemi-msg {{ msg.isUser ? 'jemi-msg-user' : 'jemi-msg-bot' }}">
-                            <t t-out="msg.text"/>
+                            <div style="white-space: pre-wrap;" t-esc="msg.text"/>
                         </div>
                     </t>
                 </div>
@@ -35,10 +35,10 @@ export class JemiFloatingBot extends Component {
     setup() {
         this.orm = useService("orm");
         this.state = useState({
-            isOpen: true, // OPEN BY DEFAULT!
+            isOpen: true,
             inputMsg: "",
             messages: [
-                { id: 1, text: "👋 Hi! I am <b>Jemi</b>, your AI Studio Assistant! Tell me: What custom app or feature would you like to build today?", isUser: false }
+                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant!\n\nTell me: What custom app or workflow would you like to build today?", isUser: false }
             ]
         });
     }
@@ -53,15 +53,33 @@ export class JemiFloatingBot extends Component {
         this.state.messages.push({ id: Date.now(), text: userText, isUser: true });
         this.state.inputMsg = "";
 
+        const queryLower = userText.toLowerCase();
+
         // Verify credentials directly from Odoo backend database
         try {
             const verification = await this.orm.call("res.config.settings", "verify_gemini_credentials", []);
 
-            if (verification && verification.is_valid) {
+            // Check if user is asking about provider / account info
+            if (queryLower.includes("provider") || queryLower.includes("account") || queryLower.includes("setting") || queryLower.includes("key") || queryLower.includes("who")) {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: `✅ <b>Google Gemini API Key Verified!</b><br/>🤖 <b>Jemi</b>: Processing your app request "${userText}"... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
+                        text: `🤖 Jemi Active AI Configuration:\n\n` +
+                              `• AI Engine Provider: ${verification.provider_label}\n` +
+                              `• AI Account User ID: ${verification.user_id}\n` +
+                              `• AI Account / Org ID: ${verification.account_id}\n` +
+                              `• Google Gemini API Key: ${verification.masked_key}\n\n` +
+                              `Status: ✅ Connected & Ready!`,
+                        isUser: false
+                    });
+                }, 800);
+            } else if (verification && verification.is_valid) {
+                setTimeout(() => {
+                    this.state.messages.push({
+                        id: Date.now() + 1,
+                        text: `🤖 Jemi (AI Engine: ${verification.provider_label}):\n\n` +
+                              `Got it! Processing your app request "${userText}"...\n` +
+                              `Click "AI Studio" on your top menu bar to inspect your custom fields & automations!`,
                         isUser: false
                     });
                 }, 800);
@@ -69,7 +87,8 @@ export class JemiFloatingBot extends Component {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: `🤖 <b>Jemi</b>: Processing your app idea "${userText}"... Click <b>AI Studio</b> on your top menu to customize!`,
+                        text: "⚠️ API Credentials Required:\n\n" +
+                              "Please click the purple 'Save' button in Settings ➔ AI Studio Configuration to activate Jemi!",
                         isUser: false
                     });
                 }, 800);
@@ -78,7 +97,7 @@ export class JemiFloatingBot extends Component {
             setTimeout(() => {
                 this.state.messages.push({
                     id: Date.now() + 1,
-                    text: `🤖 <b>Jemi</b>: Processing your app idea "${userText}"... Click <b>AI Studio</b> on your top menu to customize!`,
+                    text: `🤖 Jemi: Processing your app idea "${userText}"...\nClick "AI Studio" on your top menu bar to customize!`,
                     isUser: false
                 });
             }, 800);
