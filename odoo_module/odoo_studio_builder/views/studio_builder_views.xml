@@ -14,13 +14,14 @@
         </field>
     </record>
 
-    <!-- Clean Form View -->
+    <!-- Clean Form View with Chatter AI Bot Jemi -->
     <record id="view_studio_custom_app_form" model="ir.ui.view">
         <field name="name">studio.custom.app.form</field>
         <field name="model">studio.custom.app</field>
         <field name="arch" type="xml">
             <form string="AI Studio App Builder">
                 <header>
+                    <button name="action_start_jemi_guided_chat" type="object" string="🤖 Start Guided Chat with Jemi" class="btn-info" invisible="state == 'generated'"/>
                     <button name="action_generate_app" type="object" string="🚀 Generate &amp; Build App via Gemini AI" class="btn-primary" invisible="state == 'generated'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
@@ -35,7 +36,7 @@
                             <field name="model_name" placeholder="e.g. x_field.service"/>
                         </group>
                         <group string="AI Description / Prompt">
-                            <field name="description" placeholder="Describe your requirement to AI Studio..."/>
+                            <field name="description" placeholder="Describe your requirement to AI Bot Jemi..."/>
                         </group>
                     </group>
                     <notebook>
@@ -60,7 +61,41 @@
                         </page>
                     </notebook>
                 </sheet>
+                <!-- Chatter for AI Bot Jemi -->
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
             </form>
+        </field>
+    </record>
+
+    <!-- AI Studio Configuration Settings View -->
+    <record id="res_config_settings_view_form_studio" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.studio</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="100"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="AI Odoo Studio" string="AI Studio Configuration" name="odoo_studio_builder">
+                    <block title="AI Engine &amp; Account Settings">
+                        <setting string="AI Provider Engine" help="Select which AI engine powers your Odoo Studio Builder">
+                            <field name="ai_provider"/>
+                        </setting>
+                        <setting string="AI Account User ID / License" help="Your registered User ID for AI Studio access">
+                            <field name="jemi_user_id" placeholder="e.g. USER-2026-8894"/>
+                        </setting>
+                        <setting string="AI Account / Organization ID" help="Your registered Organization or Account ID">
+                            <field name="jemi_account_id" placeholder="e.g. ORG-DREAM-7721"/>
+                        </setting>
+                        <setting string="Google Gemini API Key" help="Your Google One AI Pro / Gemini API Key for auto-generating modules">
+                            <field name="gemini_api_key" password="True"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
         </field>
     </record>
 
@@ -71,7 +106,16 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <record id="action_studio_config_settings" model="ir.actions.act_window">
+        <field name="name">AI Studio Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module' : 'odoo_studio_builder'}</field>
+    </record>
+
     <!-- Menuitem -->
     <menuitem id="menu_studio_custom_app_root" name="AI Studio" sequence="5"/>
     <menuitem id="menu_studio_custom_app_main" name="Custom Apps &amp; Modules" parent="menu_studio_custom_app_root" action="action_studio_custom_app"/>
+    <menuitem id="menu_studio_config_settings" name="AI Engine &amp; Account Settings" parent="menu_studio_custom_app_root" action="action_studio_config_settings"/>
 </odoo>
