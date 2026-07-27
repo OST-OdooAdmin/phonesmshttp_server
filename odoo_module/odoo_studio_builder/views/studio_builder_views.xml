@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Tree View -->
+    <!-- List View (Odoo 18/19 <list> tag) -->
     <record id="view_studio_custom_app_tree" model="ir.ui.view">
-        <field name="name">studio.custom.app.tree</field>
+        <field name="name">studio.custom.app.list</field>
         <field name="model">studio.custom.app</field>
         <field name="arch" type="xml">
-            <tree string="AI Studio Apps">
+            <list string="AI Studio Apps">
                 <field name="name"/>
                 <field name="technical_name"/>
                 <field name="model_name"/>
                 <field name="state" widget="badge" decoration-success="state == 'generated'"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -40,21 +40,21 @@
                     <notebook>
                         <page string="Custom Fields (20 Field Types)">
                             <field name="field_ids">
-                                <tree editable="bottom">
+                                <list editable="bottom">
                                     <field name="name" placeholder="e.g. x_technician_phone"/>
                                     <field name="field_description" placeholder="e.g. Technician Mobile"/>
                                     <field name="ttype"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                         <page string="Automations &amp; Webhooks">
                             <field name="automation_ids">
-                                <tree editable="bottom">
+                                <list editable="bottom">
                                     <field name="name" placeholder="e.g. Trigger SMS on Dispatch"/>
                                     <field name="trigger"/>
                                     <field name="action_type"/>
                                     <field name="webhook_url" placeholder="http://115.135.158.84:2222/queue-sms"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                     </notebook>
@@ -72,7 +72,7 @@
     <record id="action_studio_custom_app" model="ir.actions.act_window">
         <field name="name">AI Studio App Builder</field>
         <field name="res_model">studio.custom.app</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
     </record>
 
     <!-- Menuitem -->
