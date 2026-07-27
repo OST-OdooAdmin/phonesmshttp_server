@@ -1,11 +1,59 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
 
 export class JemiFloatingBot extends Component {
-    static template = "odoo_studio_builder.JemiFloatingBotTemplate";
+    static template = xml`
+        <div class="jemi-bot-container">
+            <!-- Floating Launcher Button 🤖 -->
+            <div class="jemi-floating-btn" t-on-click="toggleChat" title="Chat with Jemi (AI Studio Assistant)">
+                🤖
+            </div>
+
+            <!-- Floating Chat Drawer Window -->
+            <div t-if="state.isOpen" t-attf-class="jemi-chat-drawer #{state.isExpanded ? 'is-expanded' : ''}">
+                <!-- Header -->
+                <div class="jemi-chat-header">
+                    <span>🤖 Jemi (AI Studio Assistant)</span>
+                    <div class="jemi-chat-header-actions">
+                        <button class="jemi-action-btn" t-on-click="toggleExpand" t-att-title="state.isExpanded ? 'Contract Window' : 'Expand Window'">
+                            <t t-if="state.isExpanded">🗗</t>
+                            <t t-else="">⤢</t>
+                        </button>
+                        <button class="jemi-action-btn" t-on-click="toggleChat" title="Close Window">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Body -->
+                <div class="jemi-chat-body">
+                    <t t-foreach="state.messages" t-as="msg" t-key="msg_index">
+                        <div t-attf-class="jemi-msg #{msg.sender == 'user' ? 'jemi-msg-user' : 'jemi-msg-bot'}">
+                            <t t-out="msg.text"/>
+                        </div>
+                    </t>
+                    <div t-if="state.isLoading" class="jemi-msg jemi-msg-bot">
+                        🤖 Jemi is thinking... 💭
+                    </div>
+                </div>
+
+                <!-- Input Footer -->
+                <div class="jemi-chat-footer">
+                    <input type="text"
+                           class="jemi-input"
+                           placeholder="Ask Jemi anything or describe your app idea..."
+                           t-model="state.inputMessage"
+                           t-on-keydown="onKeyPress"/>
+                    <button class="jemi-send-btn" t-on-click="sendMessage">
+                        ➔
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
 
     setup() {
         this.state = useState({
@@ -51,7 +99,7 @@ export class JemiFloatingBot extends Component {
     }
 
     async sendMessage() {
-        const text = this.state.inputMessage.strip ? this.state.inputMessage.strip() : this.state.inputMessage.trim();
+        const text = this.state.inputMessage.trim ? this.state.inputMessage.trim() : this.state.inputMessage;
         if (!text || this.state.isLoading) return;
 
         this.state.messages.push({ sender: "user", text: text });
