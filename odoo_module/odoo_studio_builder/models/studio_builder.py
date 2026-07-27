@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
 import ssl
+import logging
 import urllib.request
 import urllib.parse
 from odoo import models, fields, api, _
+
+_logger = logging.getLogger(__name__)
 
 class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
@@ -47,7 +50,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Sends all user questions directly to Google Gemini REST API and returns live AI responses"""
+        """Dynamic live AI call to Google Gemini / Antigravity engine. Zero preset text."""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='gemini_pro')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -59,17 +62,16 @@ class OdooStudioConfigSettings(models.TransientModel):
         if not api_key:
             return {
                 'success': False,
-                'response': "⚠️ API Key Missing: Please click the purple 'Save' button in Settings ➔ AI Studio Configuration after entering your Google Gemini API Key!"
+                'response': "⚠️ API Key Missing: Please enter your Google Gemini API Key in Settings ➔ AI Studio Configuration and click Save!"
             }
 
         ssl_ctx = ssl._create_unverified_context()
-        model_endpoints = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-2.0-flash"]
 
+        # Dynamic live prompt sent directly to Google Gemini API
         system_instruction = (
-            f"You are Jemi, an intelligent AI Assistant created by Antigravity AI for Odoo, powered by {provider_label}. "
-            f"Your registered Google AI Project ID is '{account_id}' and User ID is '{user_id}'. "
-            "Answer user questions directly, naturally, and accurately. "
-            "Never output generic template fallbacks. Answer the user's real-time question with 100% precision."
+            f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
+            f"Project ID: {account_id}, User ID: {user_id}. "
+            "Answer the user's question dynamically, intelligently, and accurately in natural language."
         )
 
         payload = {
@@ -83,37 +85,34 @@ class OdooStudioConfigSettings(models.TransientModel):
         }
 
         json_data = json.dumps(payload).encode('utf-8')
+        model_endpoints = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-pro"]
+        errors = []
 
         for model in model_endpoints:
-            urls_to_try = [
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-            ]
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            headers = {'Content-Type': 'application/json'}
+            try:
+                req = urllib.request.Request(url, data=json_data, headers=headers)
+                with urllib.request.urlopen(req, context=ssl_ctx, timeout=12) as response:
+                    res_data = json.loads(response.read().decode('utf-8'))
+                    candidates = res_data.get('candidates', [])
+                    if candidates:
+                        parts = candidates[0].get('content', {}).get('parts', [])
+                        if parts:
+                            ai_text = parts[0].get('text', '').strip()
+                            ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
+            except urllib.error.HTTPError as he:
+                err_body = he.read().decode('utf-8') if he.fp else str(he)
+                errors.append(f"Model '{model}' HTTP {he.code}: {err_body[:150]}")
+            except Exception as e:
+                errors.append(f"Model '{model}' Error: {str(e)[:150]}")
 
-            for url in urls_to_try:
-                headers = {
-                    'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {api_key}',
-                    'x-goog-api-key': api_key
-                }
-                try:
-                    req = urllib.request.Request(url, data=json_data, headers=headers)
-                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=12) as response:
-                        res_data = json.loads(response.read().decode('utf-8'))
-                        candidates = res_data.get('candidates', [])
-                        if candidates:
-                            parts = candidates[0].get('content', {}).get('parts', [])
-                            if parts:
-                                ai_text = parts[0].get('text', '')
-                                ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
-                except Exception:
-                    continue
-
-        # Live real-time answer fallback if network endpoint is unreachable
+        # Return exact diagnostic error from Google API if request fails
+        err_report = "\n".join(errors[:2])
         return {
-            'success': True,
-            'response': f"🤖 Jemi ({provider_label}):\n\nI am processing your real-time question '{user_prompt}' via your active Google AI Project '{account_id}' (User ID: {user_id}).\n\nSingapore is in the SGT (UTC+8) time zone. You can use me or Google Antigravity AI Engine to generate custom Odoo modules and automations!"
+            'success': False,
+            'response': f"⚠️ Google Gemini API Error:\n\n{err_report}\n\nPlease check your API Key in Settings ➔ AI Studio Configuration!"
         }
 
 class OdooStudioApp(models.Model):
