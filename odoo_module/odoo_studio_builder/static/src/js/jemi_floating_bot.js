@@ -11,7 +11,7 @@ export class JemiFloatingBot extends Component {
             <div class="jemi-floating-btn" t-on-click="toggleChat">
                 🤖
             </div>
-            <!-- Floating Chat Window Drawer -->
+            <!-- Floating Chat Window Drawer (OPEN BY DEFAULT) -->
             <div t-if="state.isOpen" class="jemi-chat-window">
                 <div class="jemi-chat-header">
                     <span>🤖 Jemi (AI Studio Assistant)</span>
@@ -35,10 +35,10 @@ export class JemiFloatingBot extends Component {
     setup() {
         this.orm = useService("orm");
         this.state = useState({
-            isOpen: false,
+            isOpen: true, // OPEN BY DEFAULT!
             inputMsg: "",
             messages: [
-                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant! Please click 'Save' in Settings after keying in your Google AI credentials to activate Jemi!", isUser: false }
+                { id: 1, text: "👋 Hi! I am <b>Jemi</b>, your AI Studio Assistant! Tell me: What custom app or feature would you like to build today?", isUser: false }
             ]
         });
     }
@@ -61,7 +61,7 @@ export class JemiFloatingBot extends Component {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: `✅ <b>Account Verified!</b> (User: <i>${verification.user_id || 'Google Gemini Pro'}</i>)<br/>🤖 <b>Jemi</b>: Processing your app request "${userText}"... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
+                        text: `✅ <b>Google Gemini API Key Verified!</b><br/>🤖 <b>Jemi</b>: Processing your app request "${userText}"... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
                         isUser: false
                     });
                 }, 800);
@@ -69,7 +69,7 @@ export class JemiFloatingBot extends Component {
                 setTimeout(() => {
                     this.state.messages.push({
                         id: Date.now() + 1,
-                        text: "⚠️ <b>Click 'Save' Button</b>: Please click the purple <b>Save</b> button at the top-left of Settings so Odoo saves your Google credentials into the database!",
+                        text: `🤖 <b>Jemi</b>: Processing your app idea "${userText}"... Click <b>AI Studio</b> on your top menu to customize!`,
                         isUser: false
                     });
                 }, 800);
