@@ -10,7 +10,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         ('openai', 'OpenAI GPT-4o')
     ], string='AI Engine Provider', default='gemini_pro', config_parameter='odoo_studio_builder.ai_provider')
 
-    jemi_user_id = fields.Char(string='AI User ID / License', config_parameter='odoo_studio_builder.jemi_user_id')
+    jemi_user_id = fields.Char(string='AI User ID / License Key', config_parameter='odoo_studio_builder.jemi_user_id')
     jemi_account_id = fields.Char(string='AI Account / Org ID', config_parameter='odoo_studio_builder.jemi_account_id')
     gemini_api_key = fields.Char(string='Google Gemini API Key', config_parameter='odoo_studio_builder.gemini_api_key')
 
@@ -32,8 +32,6 @@ class OdooStudioApp(models.Model):
         ('generated', 'Generated & Installed')
     ], default='draft', tracking=True)
 
-    jemi_conversation_log = fields.Text(string='Jemi Conversation History', readonly=True)
-
     @api.model_create_multi
     def create(self, vals_list):
         records = super(OdooStudioApp, self).create(vals_list)
@@ -42,7 +40,7 @@ class OdooStudioApp(models.Model):
         return records
 
     def _initialize_jemi_welcome_message(self):
-        """Sends welcome message from AI Bot Jemi into Chatter"""
+        """Sends welcome message from AI Bot Jemi into Chatter & Discuss Channel"""
         jemi_partner = self.env['res.partner'].sudo().search([('name', '=', 'Jemi (AI Studio Assistant)')], limit=1)
         if not jemi_partner:
             jemi_partner = self.env['res.partner'].sudo().create({
@@ -52,9 +50,9 @@ class OdooStudioApp(models.Model):
             })
         
         welcome_msg = _(
-            "👋 Hi! I am <b>Jemi</b>, your AI Studio Module Builder Bot!<br/><br/>"
-            "I am ready to build your custom Odoo module tailored to your business needs.<br/>"
-            "Tell me: <b>What app or workflow would you like to create today?</b><br/>"
+            "🤖 <b>Jemi (AI Studio Assistant)</b>: Hi! I am <b>Jemi</b>, your floating AI Studio Module Builder Bot!<br/><br/>"
+            "I am ready to build custom Odoo modules tailored to your needs.<br/>"
+            "Tell me: <b>What app or workflow would you like to build today?</b><br/>"
             "<i>(e.g., Field Service Dispatch, Inventory SMS Tracker, Customer Approval System)</i>"
         )
         self.message_post(body=welcome_msg, author_id=jemi_partner.id)
@@ -65,9 +63,8 @@ class OdooStudioApp(models.Model):
         self.state = 'guided_chat'
         jemi_partner = self.env['res.partner'].sudo().search([('name', '=', 'Jemi (AI Studio Assistant)')], limit=1)
         step_msg = _(
-            "<b>Jemi</b>: Step 1 of 3: Got it! What custom fields do you need for <b>%s</b>?<br/>"
-            "Allowed field types: <i>Text, Monetary, Selection, Signature, Image, Date, Attachments</i>.<br/>"
-            "Type your response in the chatter below or click <b>🚀 Generate & Build App via Gemini AI</b>!"
+            "<b>Jemi</b>: Step 1 of 3: What custom fields do you need for <b>%s</b>?<br/>"
+            "Allowed field types: <i>Text, Monetary, Selection, Signature, Image, Date, Attachments</i>."
         ) % self.name
         self.message_post(body=step_msg, author_id=jemi_partner.id if jemi_partner else False)
 

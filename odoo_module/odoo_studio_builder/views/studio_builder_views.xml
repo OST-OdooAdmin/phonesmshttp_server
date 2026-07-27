@@ -14,7 +14,7 @@
         </field>
     </record>
 
-    <!-- Clean Form View with Chatter AI Bot Jemi -->
+    <!-- Clean Form View with Jemi AI Assistant -->
     <record id="view_studio_custom_app_form" model="ir.ui.view">
         <field name="name">studio.custom.app.form</field>
         <field name="model">studio.custom.app</field>
@@ -84,13 +84,13 @@
                         <setting string="AI Provider Engine" help="Select which AI engine powers your Odoo Studio Builder">
                             <field name="ai_provider"/>
                         </setting>
-                        <setting string="AI Account User ID / License" help="Your registered User ID for AI Studio access">
+                        <setting string="AI Account User ID / License Key" help="Key in your registered User ID for AI Studio access">
                             <field name="jemi_user_id" placeholder="e.g. USER-2026-8894"/>
                         </setting>
-                        <setting string="AI Account / Organization ID" help="Your registered Organization or Account ID">
+                        <setting string="AI Account / Organization ID" help="Key in your registered Organization or Account ID">
                             <field name="jemi_account_id" placeholder="e.g. ORG-DREAM-7721"/>
                         </setting>
-                        <setting string="Google Gemini API Key" help="Your Google One AI Pro / Gemini API Key for auto-generating modules">
+                        <setting string="Google Gemini API Key" help="Key in your Google One AI Pro / Gemini API Key for auto-generating modules">
                             <field name="gemini_api_key" password="True"/>
                         </setting>
                     </block>
@@ -99,7 +99,7 @@
         </field>
     </record>
 
-    <!-- Action -->
+    <!-- Window Actions -->
     <record id="action_studio_custom_app" model="ir.actions.act_window">
         <field name="name">AI Studio App Builder</field>
         <field name="res_model">studio.custom.app</field>
@@ -107,15 +107,18 @@
     </record>
 
     <record id="action_studio_config_settings" model="ir.actions.act_window">
-        <field name="name">AI Studio Settings</field>
+        <field name="name">AI Studio Configuration</field>
         <field name="res_model">res.config.settings</field>
         <field name="view_mode">form</field>
         <field name="target">inline</field>
         <field name="context">{'module' : 'odoo_studio_builder'}</field>
     </record>
 
-    <!-- Menuitem -->
+    <!-- Top Menuitems -->
     <menuitem id="menu_studio_custom_app_root" name="AI Studio" sequence="5"/>
     <menuitem id="menu_studio_custom_app_main" name="Custom Apps &amp; Modules" parent="menu_studio_custom_app_root" action="action_studio_custom_app"/>
     <menuitem id="menu_studio_config_settings" name="AI Engine &amp; Account Settings" parent="menu_studio_custom_app_root" action="action_studio_config_settings"/>
+    
+    <!-- Also add under Settings Technical menu for easy user access -->
+    <menuitem id="menu_studio_config_settings_technical" name="AI Studio Configuration" parent="base.menu_custom" action="action_studio_config_settings"/>
 </odoo>

@@ -1,0 +1,97 @@
+/* Floating Jemi AI Studio Bot Widget Styles */
+.jemi-floating-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #714B67 0%, #875A7B 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(113, 75, 103, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    cursor: pointer;
+    z-index: 9999;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.jemi-floating-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(113, 75, 103, 0.6);
+}
+
+.jemi-chat-window {
+    position: fixed;
+    bottom: 95px;
+    right: 25px;
+    width: 360px;
+    height: 480px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+}
+
+.jemi-chat-header {
+    background: #714B67;
+    color: #ffffff;
+    padding: 14px 16px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.jemi-chat-body {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f8f9fa;
+}
+
+.jemi-msg {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    max-width: 85%;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.jemi-msg-bot {
+    background: #ffffff;
+    color: #212529;
+    border: 1px solid #e9ecef;
+    align-self: flex-start;
+}
+
+.jemi-msg-user {
+    background: #714B67;
+    color: #ffffff;
+    margin-left: auto;
+    align-self: flex-end;
+}
+
+.jemi-chat-footer {
+    padding: 10px;
+    background: #ffffff;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 8px;
+}
+
+.jemi-chat-input {
+    flex: 1;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    outline: none;
+}
