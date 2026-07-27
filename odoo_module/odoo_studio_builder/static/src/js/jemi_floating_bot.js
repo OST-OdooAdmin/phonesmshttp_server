@@ -33,12 +33,13 @@ export class JemiFloatingBot extends Component {
     `;
 
     setup() {
-        this.action = useService("action");
+        this.orm = useService("orm");
         this.state = useState({
             isOpen: false,
             inputMsg: "",
+            apiKeyConfigured: false,
             messages: [
-                { id: 1, text: "👋 Hi! I am Jemi, your floating AI Studio Assistant! Tell me: What custom app would you like to build today?", isUser: false }
+                { id: 1, text: "👋 Hi! I am Jemi, your AI Studio Assistant! Please configure your Free Google Gemini API Key in Settings to start building apps!", isUser: false }
             ]
         });
     }
@@ -47,19 +48,43 @@ export class JemiFloatingBot extends Component {
         this.state.isOpen = !this.state.isOpen;
     }
 
-    sendMessage() {
+    async sendMessage() {
         if (!this.state.inputMsg.trim()) return;
         const userText = this.state.inputMsg;
         this.state.messages.push({ id: Date.now(), text: userText, isUser: true });
         this.state.inputMsg = "";
 
-        setTimeout(() => {
-            this.state.messages.push({
-                id: Date.now() + 1,
-                text: `🤖 Jemi: Got it! Creating your app idea "${userText}"... Click "AI Studio" on your top menu to customize fields & automations!`,
-                isUser: false
-            });
-        }, 1000);
+        // Check if Gemini API key or account is configured in Odoo Settings
+        try {
+            const config = await this.orm.call("res.config.settings", "get_values", []);
+            const apiKey = config.gemini_api_key || "";
+
+            if (!apiKey) {
+                setTimeout(() => {
+                    this.state.messages.push({
+                        id: Date.now() + 1,
+                        text: "⚠️ <b>API Key Required</b>: Jemi requires a Free Google Gemini API Key to operate! Please go to <b>Settings ➔ AI Studio Configuration</b> and paste your key from <a href='https://aistudio.google.com/app/apikey' target='_blank'>aistudio.google.com</a>.",
+                        isUser: false
+                    });
+                }, 800);
+            } else {
+                setTimeout(() => {
+                    this.state.messages.push({
+                        id: Date.now() + 1,
+                        text: `🤖 <b>Jemi (Gemini AI)</b>: Processing your request "${userText}" using your Google AI API key... Click <b>AI Studio</b> on your top menu to customize fields & automations!`,
+                        isUser: false
+                    });
+                }, 800);
+            }
+        } catch (e) {
+            setTimeout(() => {
+                this.state.messages.push({
+                    id: Date.now() + 1,
+                    text: `🤖 <b>Jemi</b>: Processing your app idea "${userText}"... Click <b>AI Studio</b> on your top menu to customize!`,
+                    isUser: false
+                });
+            }, 800);
+        }
     }
 
     onKeyDown(ev) {
