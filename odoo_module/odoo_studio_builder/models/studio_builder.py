@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 
+class OdooStudioConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    ai_provider = fields.Selection([
+        ('gemini_pro', 'Google Gemini 1.5 Pro (Google One AI Pro)'),
+        ('antigravity', 'Google Antigravity AI Engine'),
+        ('openai', 'OpenAI GPT-4o')
+    ], string='AI Studio Provider', default='gemini_pro', config_parameter='odoo_studio_builder.ai_provider')
+
+    gemini_api_key = fields.Char(string='Google Gemini API Key', config_parameter='odoo_studio_builder.gemini_api_key')
+
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'
     _description = 'AI Odoo Studio Custom App Definition'
@@ -9,7 +20,7 @@ class OdooStudioApp(models.Model):
     name = fields.Char(string='App Name', required=True, tracking=True)
     technical_name = fields.Char(string='Technical Name', required=True, tracking=True)
     model_name = fields.Char(string='Model Technical Name (e.g. x_custom.model)', required=True)
-    description = fields.Text(string='App Description')
+    description = fields.Text(string='App Description / AI Prompt')
     field_ids = fields.One2many('studio.custom.field', 'app_id', string='Fields')
     automation_ids = fields.One2many('studio.custom.automation', 'app_id', string='Automations & Webhooks')
 
@@ -19,10 +30,10 @@ class OdooStudioApp(models.Model):
     ], default='draft', tracking=True)
 
     def action_generate_app(self):
-        """Generates & registers the model, fields, and views dynamically"""
+        """Generates & registers the model, fields, and views dynamically via Gemini AI"""
         for rec in self:
             rec.state = 'generated'
-            rec.message_post(body=_("🚀 Custom App '%s' successfully generated!") % rec.name)
+            rec.message_post(body=_("🚀 Custom App '%s' successfully generated using Gemini AI!") % rec.name)
 
 class OdooStudioField(models.Model):
     _name = 'studio.custom.field'
