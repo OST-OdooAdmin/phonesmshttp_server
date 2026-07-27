@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_studio_custom_app_tree" model="ir.ui.view">
+        <field name="name">studio.custom.app.tree</field>
+        <field name="model">studio.custom.app</field>
+        <field name="arch" type="xml">
+            <tree string="AI Studio Apps">
+                <field name="name"/>
+                <field name="technical_name"/>
+                <field name="model_name"/>
+                <field name="state" widget="badge" decoration-success="state == 'generated'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_studio_custom_app_form" model="ir.ui.view">
+        <field name="name">studio.custom.app.form</field>
+        <field name="model">studio.custom.app</field>
+        <field name="arch" type="xml">
+            <form string="AI Studio App Builder">
+                <header>
+                    <button name="action_generate_app" type="object" string="🚀 Generate &amp; Build App" class="oe_highlight" invisible="state == 'generated'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Field Service Dispatcher"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="technical_name" placeholder="e.g. field_service_sms"/>
+                            <field name="model_name" placeholder="e.g. x_field.service"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Custom Fields (20 Field Types)">
+                            <field name="field_ids">
+                                <tree editable="bottom">
+                                    <field name="name" placeholder="e.g. x_technician_phone"/>
+                                    <field name="field_description" placeholder="e.g. Technician Mobile"/>
+                                    <field name="ttype"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Automations &amp; Webhooks">
+                            <field name="automation_ids">
+                                <tree editable="bottom">
+                                    <field name="name" placeholder="e.g. Trigger SMS on Dispatch"/>
+                                    <field name="trigger"/>
+                                    <field name="action_type"/>
+                                    <field name="webhook_url" placeholder="http://115.135.158.84:2222/queue-sms"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_studio_custom_app" model="ir.actions.act_window">
+        <field name="name">AI Studio App Builder</field>
+        <field name="res_model">studio.custom.app</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- Menuitem -->
+    <menuitem id="menu_studio_custom_app_root" name="AI Studio" sequence="5"/>
+    <menuitem id="menu_studio_custom_app_main" name="Custom Apps &amp; Modules" parent="menu_studio_custom_app_root" action="action_studio_custom_app"/>
+</odoo>

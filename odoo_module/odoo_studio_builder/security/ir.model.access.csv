@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_studio_custom_app,studio.custom.app,model_studio_custom_app,base.group_user,1,1,1,1
+access_studio_custom_field,studio.custom.field,model_studio_custom_field,base.group_user,1,1,1,1
+access_studio_custom_automation,studio.custom.automation,model_studio_custom_automation,base.group_user,1,1,1,1
