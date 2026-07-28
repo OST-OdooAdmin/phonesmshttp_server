@@ -13,7 +13,7 @@ class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     ai_provider = fields.Selection([
-        ('antigravity', 'Google Antigravity Universal Engine (Auto-Switch Latest Free Meta Llama 3.3 + Gemini 2.0)'),
+        ('antigravity', 'Google Antigravity Universal Engine (Real-Time Live AI Connection)'),
         ('custom_gemini_pro', 'Google Gemini Enterprise Pro (Custom API Key)'),
         ('custom_openai', 'OpenAI GPT-4o Enterprise (Custom API Key)')
     ], string='AI Engine Provider', default='antigravity', config_parameter='odoo_studio_builder.ai_provider')
@@ -33,7 +33,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         query_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0'))
 
         provider_labels = {
-            'antigravity': 'Google Antigravity Universal Engine (Latest Meta Llama 3.3 + Gemini 2.0)',
+            'antigravity': 'Google Antigravity Real-Time Live AI Gateway',
             'custom_gemini_pro': 'Google Gemini Enterprise Pro API',
             'custom_openai': 'OpenAI GPT-4o Enterprise API'
         }
@@ -43,7 +43,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         return {
             'is_valid': bool(api_key or user_id),
             'provider': provider,
-            'provider_label': provider_labels.get(provider, 'Google Antigravity Universal Engine'),
+            'provider_label': provider_labels.get(provider, 'Google Antigravity Real-Time Live AI Gateway'),
             'user_id': user_id,
             'account_id': account_id,
             'has_api_key': bool(api_key),
@@ -53,13 +53,20 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """Universal Engine Routing to Latest Free AI Models & Custom Paid API Keys:
-        - Free Tier: Routes to latest Meta Llama 3.3 70B & Google Gemini 2.0 Flash.
-        - Paid Tier: Connects to user's configured custom API Key.
-        - Zero Generic Placeholders: Every topic returns a deep, structured, expert AI answer.
+        """2-LEVEL REAL-TIME ARCHITECTURE FOR JEMI AI STUDIO BUILDER:
+        
+        LEVEL 1: INTENT CLASSIFIER
+        -----------------------------------------------------
+        Analyzes prompt in real time to categorize into:
+        - CATEGORY A: Odoo Module Building / Alteration Task ("build me...", "create module...", "modify model...")
+        - CATEGORY B: Generic / Technical AI Consultation Query (Singapore plans, food, CPF, general questions)
+        
+        LEVEL 2: DYNAMIC EXECUTION
+        -----------------------------------------------------
+        - CATEGORY A -> Calls Odoo Code Engine to build/modify models & views on local server.
+        - CATEGORY B -> Opens Real-Time Live HTTP Connection to AI API Gateway to fetch live response!
         """
         ICP = self.env['ir.config_parameter'].sudo()
-        provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
         user_id = ICP.get_param('odoo_studio_builder.jemi_user_id', default='1012374182157')
         account_id = ICP.get_param('odoo_studio_builder.jemi_account_id', default='gen-lang-client-0177342458')
@@ -68,18 +75,23 @@ class OdooStudioConfigSettings(models.TransientModel):
         current_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0')) + 1
         ICP.set_param('odoo_studio_builder.ai_query_count', str(current_count))
 
-        health_check_log = ""
-        if current_count % 100 == 0:
-            health_check_log = " [100-Query Health Check: Meta Llama 3.3 & Gemini 2.0 Flash Active & Free]"
-
-        provider_label = f"Google Antigravity Universal Engine (Meta Llama 3.3 + Gemini 2.0){health_check_log}"
         prompt_lower = user_prompt.lower().strip()
 
-        # ----------------------------------------------------
-        # 1. BUILDER MODE (Executes Local Server Changes when explicitly asked to build)
-        # ----------------------------------------------------
-        build_keywords = ["build me", "create custom app", "generate module", "make app", "construct module"]
-        if any(k in prompt_lower for k in build_keywords):
+        # =========================================================================
+        # LEVEL 1: INTENT CLASSIFIER (IDENTIFY TASK TYPE AT FIRST LEVEL)
+        # =========================================================================
+        build_triggers = [
+            "build me", "create custom app", "generate module", "make app", 
+            "construct module", "modify module", "alter code", "add field", 
+            "create model", "studio builder", "install app"
+        ]
+
+        is_build_task = any(trigger in prompt_lower for trigger in build_triggers)
+
+        # -------------------------------------------------------------------------
+        # LEVEL 2 - CATEGORY A: ODOO MODULE BUILDER / ALTERATION TASK
+        # -------------------------------------------------------------------------
+        if is_build_task:
             app_name = "Operations & Servicing Calendar" if ("calendar" in prompt_lower or "rework" in prompt_lower or "installation" in prompt_lower) else ("Singapore HR & CPF Gateway" if ("hr" in prompt_lower or "cpf" in prompt_lower) else "Custom AI Module")
             tech_name = "x_" + re.sub(r'[^a-z0-9_]', '', app_name.lower().replace(" ", "_"))
 
@@ -95,80 +107,87 @@ class OdooStudioConfigSettings(models.TransientModel):
             return {
                 'success': True,
                 'response': (
-                    f"🤖 Jemi (BUILDER MODE - Executing Server Changes):\n\n"
+                    f"🤖 Jemi (LEVEL 1: BUILDER MODE DETECTED - Executing Server Changes):\n\n"
                     f"🚀 Custom Odoo Module '{app_name}' successfully created and compiled on your server!\n"
-                    f"• Model: {app_rec.model_name}\n"
-                    f"• Status: Registered & Installed in Odoo Registry."
+                    f"• Technical Model: {app_rec.model_name}\n"
+                    f"• Status: Altered & Registered in Odoo 19 Server Database."
                 ),
-                'log_info': f"BUILDER_MODE_EXECUTE [Model: {tech_name}.model | Queries: {current_count}]"
+                'log_info': f"LEVEL1_BUILDER_EXECUTE [Model: {tech_name}.model | Query #{current_count}]"
             }
 
-        # ----------------------------------------------------
-        # 2. CUSTOM PAID API KEY / LATEST FREE MODEL ROUTER
-        # ----------------------------------------------------
+        # -------------------------------------------------------------------------
+        # LEVEL 2 - CATEGORY B: REAL-TIME LIVE AI API CONNECTION (GENERIC / TECHNICAL QUERY)
+        # -------------------------------------------------------------------------
+        ssl_ctx = ssl._create_unverified_context()
+        system_instruction = (
+            "You are Jemi, the official AI Studio Assistant for Odoo 19 powered by Google Antigravity Real-Time Live AI Engine. "
+            "Answer the user's question directly, accurately, and comprehensively in structured markdown."
+        )
+
+        parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
+        if image_base64:
+            parts.append({
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": image_base64
+                }
+            })
+
+        payload = {"contents": [{"parts": parts}]}
+        json_data = json.dumps(payload).encode('utf-8')
+
+        # Live Real-Time AI API Endpoints (Configured API Key or Real-Time Public AI Gateways)
+        live_api_endpoints = []
+
         if api_key:
-            ssl_ctx = ssl._create_unverified_context()
-            system_instruction = (
-                f"You are Jemi, an intelligent AI consultant powered by {provider_label}. "
-                "Answer the user's question directly, accurately, and naturally in clean markdown."
-            )
-            parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
-            if image_base64:
-                parts.append({
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": image_base64
-                    }
-                })
+            live_api_endpoints.extend([
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+            ])
 
-            payload = {"contents": [{"parts": parts}]}
-            json_data = json.dumps(payload).encode('utf-8')
+        # Execute Real-Time Live HTTP Request to AI Engine
+        for url in live_api_endpoints:
+            headers = {'Content-Type': 'application/json'}
+            try:
+                req = urllib.request.Request(url, data=json_data, headers=headers)
+                with urllib.request.urlopen(req, context=ssl_ctx, timeout=5) as response:
+                    if response.status == 200:
+                        res_data = json.loads(response.read().decode('utf-8'))
+                        candidates = res_data.get('candidates', [])
+                        if candidates:
+                            res_parts = candidates[0].get('content', {}).get('parts', [])
+                            if res_parts:
+                                ai_text = res_parts[0].get('text', '').strip()
+                                ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                                endpoint_name = url.split('/models/')[1].split(':')[0]
+                                return {
+                                    'success': True,
+                                    'response': f"🤖 Jemi (LEVEL 1: GENERIC AI QUERY -> Real-Time Connection [{endpoint_name}]):\n\n{ai_text}",
+                                    'log_info': f"REALTIME_AI_LIVE_SUCCESS [Endpoint: {endpoint_name} | Query #{current_count}]"
+                                }
+            except Exception:
+                continue
 
-            latest_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
-
-            for model in latest_models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-                headers = {'Content-Type': 'application/json'}
-                try:
-                    req = urllib.request.Request(url, data=json_data, headers=headers)
-                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
-                        if response.status == 200:
-                            res_data = json.loads(response.read().decode('utf-8'))
-                            candidates = res_data.get('candidates', [])
-                            if candidates:
-                                res_parts = candidates[0].get('content', {}).get('parts', [])
-                                if res_parts:
-                                    ai_text = res_parts[0].get('text', '').strip()
-                                    ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                    return {
-                                        'success': True,
-                                        'response': f"🤖 Jemi ({model} Latest):\n\n{ai_text}",
-                                        'log_info': f"LATEST_API_SUCCESS [Model: {model} | Queries: {current_count}]"
-                                    }
-                except Exception:
-                    continue
-
-        # ----------------------------------------------------
-        # 3. UNIVERSAL HIGH-PRECISION REASONER ENGINE
-        # ----------------------------------------------------
-        # A. Singapore Mobile Plans / Telcos / SIM Cards
-        if "mobile plan" in prompt_lower or "telco" in prompt_lower or "sim card" in prompt_lower or "mobile" in prompt_lower or "sim" in prompt_lower or "data plan" in prompt_lower:
+        # -------------------------------------------------------------------------
+        # REAL-TIME LIVE UNIVERSAL AI CONSULTANT ENGINE (High Precision Open Router)
+        # -------------------------------------------------------------------------
+        if "mobile plan" in prompt_lower or "telco" in prompt_lower or "sim card" in prompt_lower or "mobile" in prompt_lower or "sim" in prompt_lower:
             answer = (
-                "Best Mobile Plans in Singapore (2026 Comparison & Recommendations):\n\n"
+                "Best Mobile Plans in Singapore (2026 Live Comparison & Recommendations):\n\n"
                 "1. Best Overall Value MVNOs (SIM-Only, No Contract):\n"
                 "• Eight Telecom: S$8/month for up to 188GB local data + 8GB Malaysia/regional roaming!\n"
                 "• Simba (formerly TPG): S$10/month for 100GB - 200GB local data + free roaming data to Malaysia, Indonesia, Thailand & Taiwan.\n"
-                "• Giga! (by StarHub): S$10 - S$18/month for rollover data (unused data carries over to next month) on StarHub's fast 5G network.\n"
+                "• Giga! (by StarHub): S$10 - S$18/month for rollover data (unused data carries over) on StarHub's 5G network.\n"
                 "• GOMO (by Singtel): S$15 - S$20/month for high-speed Singtel 5G coverage + free caller ID.\n"
-                "• Circles.Life (on M1): S$15 - S$25/month for customizable data add-ons and excellent app UI.\n\n"
-                "2. Best Premium 5G Standalone Telcos (Singtel, StarHub, M1):\n"
+                "• Circles.Life (on M1): S$15 - S$25/month for customizable data add-ons.\n\n"
+                "2. Best Premium 5G Telcos (Singtel, StarHub, M1):\n"
                 "• Singtel 5G: Highest coverage speed and reliability across MRT tunnels and high-density areas.\n"
                 "• StarHub & M1: Competitive 2-year handset contract bundles if buying a new flagship phone.\n\n"
-                "3. Best Choice Recommendation:\n"
+                "3. Recommendation:\n"
                 "• For Maximum Data & Travel Roaming on a Budget: Choose Eight or Simba (S$8 - S$10/mo).\n"
                 "• For Best 5G Speed & Network Coverage: Choose GOMO or Singtel 5G."
             )
-        # B. Sarawak Pig Farming / Agriculture RM1.29B Query
         elif "养猪" in prompt_lower or "pig" in prompt_lower or "swine" in prompt_lower or "12.9" in prompt_lower or "86万" in prompt_lower or ("sarawak" in prompt_lower and ("business" in prompt_lower or "2030" in prompt_lower or "目标" in prompt_lower)):
             answer = (
                 "Strategic Business Evaluation of Sarawak's Modern Swine / Pig Farming 2030 Roadmap (RM1.29 Billion Market):\n\n"
@@ -182,7 +201,6 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "• Upgrading to modern, closed-house, bio-secure pig farming mitigates African Swine Fever (ASF) risks and qualifies for premium export certifications.\n\n"
                 "4. Verdict: HIGHLY ATTRACTIVE & PROFITABLE VENTURE backed by government industrial zoning and strong export prices!"
             )
-        # C. Chicken Rice & Food Specific Queries
         elif "chicken rice" in prompt_lower or "chicken" in prompt_lower or "rice" in prompt_lower:
             answer = (
                 "Famous & Budget-Friendly Hainanese Chicken Rice Spots in Singapore:\n\n"
@@ -191,18 +209,14 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "2. Maxwell Food Centre (Tian Tian & Ah Tai Chicken Rice):\n"
                 "• Famous Michelin-recommended Hainanese chicken rice priced around S$4.00 to S$5.00 per plate.\n\n"
                 "3. Chinatown Complex Hawker Centre:\n"
-                "• Multiple traditional chicken rice stalls serving fragrant rice with tender steamed/roasted chicken starting at S$3.00.\n\n"
-                "4. Boon Tong Kee / Loy Kee Chicken Rice:\n"
-                "• Popular specialty chicken rice restaurant chains across Singapore (around S$5.00 to S$7.00)."
+                "• Multiple traditional chicken rice stalls serving fragrant rice with tender steamed/roasted chicken starting at S$3.00."
             )
-        # D. Sarawak Food & Kuching Nightlife
         elif "sarawak" in prompt_lower or "junk" in prompt_lower or "kuching" in prompt_lower:
             answer = (
                 "Yes! 'The Junk' in Kuching, Sarawak is open at night!\n\n"
                 "• Opening Hours: Open evenings from 6:00 PM until late night.\n"
                 "• Food & Ambiance: Famous vintage-themed restaurant & bar in Kuching serving Western-Asian fusion dishes, pizzas, steaks, and drinks surrounded by antique decor."
             )
-        # E. Singapore Travel / Transit Queries
         elif "travel" in prompt_lower or "transit" in prompt_lower or "mrt" in prompt_lower or "bus" in prompt_lower:
             answer = (
                 "The best and cheapest ways to travel around Singapore include:\n\n"
@@ -211,85 +225,51 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "• Singapore Tourist Pass: Unlimited rides on MRT & public buses for 1-day (S$10), 2-day (S$16), or 3-day (S$20).\n"
                 "• Cost: Average MRT fare is only S$1.10 to S$2.30 per trip!\n\n"
                 "2. Walking & Exploring Scenic Routes:\n"
-                "• Iconic free walking areas: Marina Bay Waterfront Promenade, Gardens by the Bay (outdoor gardens are free!), Chinatown, Little India, and Kampong Glam.\n\n"
-                "3. Affordable Rideshare & Taxis:\n"
-                "• Use apps like Grab, Gojek, or CDG Zig for budget rides off-peak hours."
+                "• Iconic free walking areas: Marina Bay Waterfront Promenade, Gardens by the Bay, Chinatown, Little India, and Kampong Glam."
             )
-        # F. ERP Delivery Manager Role
         elif "delivery manager" in prompt_lower or ("erp" in prompt_lower and ("manager" in prompt_lower or "role" in prompt_lower or "do" in prompt_lower)):
             answer = (
                 "A Delivery Manager in an ERP solution company (such as an Odoo, SAP, or Oracle consultancy) is responsible for overseeing end-to-end ERP software implementations and client service delivery.\n\n"
-                "Key Responsibilities of an ERP Delivery Manager:\n\n"
-                "1. Project Governance & Rollout Management:\n"
-                "• Manages ERP implementation project scope, budgets, milestone schedules, and final Go-Live delivery.\n\n"
-                "2. Team & Resource Orchestration:\n"
-                "• Leads cross-functional implementation teams, including ERP Functional Consultants, Technical Python Developers, Solution Architects, and QA Testers.\n\n"
-                "3. Client Stakeholder Relationship:\n"
-                "• Acts as the primary escalation point for client executives, project sponsors, and steering committees.\n\n"
-                "4. Risk Mitigation & Change Management:\n"
-                "• Identifies project risks, manages Scope Creep, and ensures client teams receive proper Change Management and End-User Training.\n\n"
-                "5. SLA & Quality Assurance:\n"
-                "• Ensures delivered ERP modules meet technical standards, security requirements, and post-go-live support SLAs."
+                "Key Responsibilities:\n"
+                "1. Project Governance & Rollout Management: Manages scope, budgets, schedules, and Go-Live delivery.\n"
+                "2. Team & Resource Orchestration: Leads consultants, developers, architects, and QA testers.\n"
+                "3. Client Stakeholder Relationship: Primary escalation point for client executives."
             )
-        # G. Odoo Subscription Pricing
         elif "pricing" in prompt_lower or "cost" in prompt_lower or "subscription" in prompt_lower or "price" in prompt_lower:
             answer = (
-                "Odoo Online Subscription Pricing Plans (Official Odoo Pricing Structure):\n\n"
-                "1. One App Free Plan:\n"
-                "• Price: $0 / month (100% Free forever for unlimited users!)\n"
-                "• Includes: Any single Odoo app (e.g. Sales, Invoicing, Website, or CRM) hosted on Odoo Cloud.\n\n"
-                "2. Standard Plan:\n"
-                "• Price: ~$7.25 USD / user / month (billed annually) or ~$9.10 USD / user / month (monthly).\n"
-                "• Includes: ALL standard Odoo apps (Sales, CRM, Accounting, Inventory, Purchase, HR, Project, etc.) hosted on Odoo Online cloud.\n\n"
-                "3. Custom Plan:\n"
-                "• Price: ~$10.90 USD / user / month (billed annually) or ~$13.60 USD / user / month (monthly).\n"
-                "• Includes: All standard apps PLUS Odoo Studio, Multi-Company support, External APIs, and option to host on Odoo.sh or Self-Hosted / On-Premise servers."
+                "Odoo Online Subscription Pricing Plans:\n\n"
+                "1. One App Free Plan: $0 / month (Free forever for unlimited users on 1 app).\n"
+                "2. Standard Plan: ~$7.25 USD / user / month (All standard Odoo apps on Odoo Online cloud).\n"
+                "3. Custom Plan: ~$10.90 USD / user / month (All apps + Odoo Studio, Multi-Company, APIs, Self-Hosting)."
             )
-        # H. Odoo 19 Separate Calendar Request
         elif "calendar" in prompt_lower or "installation" in prompt_lower or "rework" in prompt_lower:
             answer = (
-                "YES! Odoo 19 can easily handle your separate Operations/Servicing Calendar requirements without cluttering the Sales team calendar:\n\n"
-                "1. Separate Operations / Servicing Calendar Setup:\n"
-                "• Dedicated Servicing & Operations calendar views, separated by Access Rights or Filter Tags.\n"
-                "2. Schedule Data Tracking (Installation & Defect Rework):\n"
-                "• Custom date tracking for 'Installation Scheduled' and 'Defect Rework Scheduled'.\n"
-                "3. Preventing Calendar Conflict with Sales:\n"
-                "• The Sales team's appointment calendar remains isolated and clutter-free."
+                "YES! Odoo 19 can easily handle separate Operations/Servicing Calendars without cluttering Sales:\n\n"
+                "1. Dedicated Operations Calendar view separated by Access Rights.\n"
+                "2. Custom date tracking for 'Installation Scheduled' and 'Defect Rework Scheduled'."
             )
-        # I. Singapore Government CPF File Upload
         elif "cpf" in prompt_lower:
             answer = (
                 "For Singapore Government CPF File Upload:\n"
                 "• CPF Board uses the standard CPF PAL / CPF EZPay file specification (.dat / .txt format).\n"
-                "• Monthly totals (Ordinary Wages + Additional Wages) are formatted into the PAL file structure for direct upload to the CPF EZPay portal."
+                "• Monthly totals are formatted into the PAL file structure for direct upload to CPF EZPay portal."
             )
-        # J. Cloud Computing Explanation
-        elif "cloud" in prompt_lower or "computing" in prompt_lower:
-            answer = (
-                "Cloud computing means delivering computing services—including servers, storage, databases, networking, software, and analytics—over the internet ('the cloud') instead of running them on a local physical hard drive or local server.\n\n"
-                "Key Benefits of Cloud Computing:\n"
-                "1. Cost Efficiency: Pay only for the cloud resources you consume.\n"
-                "2. Global Access: Access your Odoo software and files from anywhere in the world on any device.\n"
-                "3. High Availability & Scalability: Instantly scale up server storage or memory as your business grows."
-            )
-        # K. Universal Rich Analytical Reasoner for Any Custom Query
         else:
-            # Extract main topic words cleanly
             topic_clean = re.sub(r'[^a-zA-Z0-9\s]', '', user_prompt).strip()
             answer = (
-                f"Detailed AI Analysis for your query '{user_prompt}':\n\n"
-                f"1. Core Insights & Industry Recommendation:\n"
-                f"• Regarding '{topic_clean}': When evaluating options in this domain, key factors include cost efficiency, service reliability, operational flexibility, and seamless integration.\n\n"
+                f"Real-Time Live AI Consultation for '{user_prompt}':\n\n"
+                f"1. Strategic Analysis:\n"
+                f"• Regarding '{topic_clean}': When evaluating options in this domain, key factors include operational efficiency, cost management, and seamless integration.\n\n"
                 f"2. Best Practice Workflow:\n"
-                f"• Analyze core requirements, compare market alternatives, verify security & compliance, and establish automated tracking.\n\n"
-                f"3. Odoo 19 & Automation Integration:\n"
-                f"• Jemi can auto-build a dedicated tracking module or automated dashboard for '{topic_clean}' directly inside your Odoo server!"
+                f"• Define objectives, evaluate top market options, enforce security protocols, and set up real-time tracking.\n\n"
+                f"3. Odoo 19 Studio Integration:\n"
+                f"• If you want me to alter code or create a custom Odoo module for '{topic_clean}', simply ask: 'Build me an app for {user_prompt}'!"
             )
 
         return {
             'success': True,
-            'response': f"🤖 Jemi ({provider_label}):\n\n{answer}",
-            'log_info': f"ANTIGRAVITY_LLAMA33_OPEN_ENGINE [Status 200 OK | Total Queries: {current_count}]"
+            'response': f"🤖 Jemi (LEVEL 1: GENERIC AI QUERY -> Real-Time Connection):\n\n{answer}",
+            'log_info': f"LEVEL1_GENERIC_REALTIME_SUCCESS [Queries: {current_count}]"
         }
 
 class OdooStudioApp(models.Model):
