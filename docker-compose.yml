@@ -1,6 +1,13 @@
 version: '3.8'
 
 services:
+  antigravity-ai-service:
+    build: ./antigravity_service
+    container_name: antigravity-ai-service
+    ports:
+      - "5005:5005"
+    restart: always
+
   odoo-web:
     image: odoo:18.0
     container_name: odoo19-web
@@ -8,6 +15,7 @@ services:
       - "8069:8069"
     depends_on:
       - odoo-db
+      - antigravity-ai-service
     environment:
       - HOST=odoo-db
       - USER=odoo
