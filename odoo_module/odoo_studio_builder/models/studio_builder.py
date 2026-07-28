@@ -57,7 +57,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Dual-Mode Intent Classifier & Rich Knowledge Engine"""
+        """Pure dynamic AI engine without hardcoded responses"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -76,9 +76,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         prompt_lower = user_prompt.lower().strip()
 
-        # ----------------------------------------------------
-        # BUILDER MODE (Creates Custom App on Server)
-        # ----------------------------------------------------
+        # BUILDER MODE (Executes Local Server Changes when explicitly asked to build)
         build_keywords = ["build me", "create custom app", "generate module", "make app", "construct module"]
         if any(k in prompt_lower for k in build_keywords):
             app_name = "Singapore HR & CPF Gateway" if ("hr" in prompt_lower or "cpf" in prompt_lower) else "Custom AI Module"
@@ -103,58 +101,53 @@ class OdooStudioConfigSettings(models.TransientModel):
                 )
             }
 
-        # ----------------------------------------------------
-        # ADVICE & KNOWLEDGE MODE (Live Gemini API + Rich Knowledge Engine)
-        # ----------------------------------------------------
+        # PURE DYNAMIC GEMINI REST API CALL
         if api_key:
             ssl_ctx = ssl._create_unverified_context()
             system_instruction = (
                 f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
-                "Answer the user's question directly, accurately, and naturally."
+                "Answer the user's question directly, accurately, and naturally in clean text."
             )
             payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]}]}
             json_data = json.dumps(payload).encode('utf-8')
 
-            for model in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-                headers = {'Content-Type': 'application/json'}
-                try:
-                    req = urllib.request.Request(url, data=json_data, headers=headers)
-                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=8) as response:
-                        res_data = json.loads(response.read().decode('utf-8'))
-                        candidates = res_data.get('candidates', [])
-                        if candidates:
-                            parts = candidates[0].get('content', {}).get('parts', [])
-                            if parts:
-                                ai_text = parts[0].get('text', '').strip()
-                                ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
-                except Exception:
-                    continue
+            model_endpoints = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
+            errors = []
 
-        # Rich Knowledge Reasoning Engine for instant accurate answers
-        if "sarawak" in prompt_lower or ("food" in prompt_lower and ("fav" in prompt_lower or "local" in prompt_lower)):
-            answer = (
-                "Famous local foods in Sarawak include:\n\n"
-                "• Sarawak Laksa: Iconic rice vermicelli in a rich, fragrant coconut-tamarind broth topped with shredded chicken, omelette strips, and prawns.\n"
-                "• Kolo Mee: Springy egg noodles tossed in savory lard/seasoning, served with char siu, minced pork, and fried shallow onions.\n"
-                "• Midin (Wild Jungle Fern): Crispy, tender wild jungle fern stir-fried with belacan (shrimp paste) or garlic.\n"
-                "• Ayam Pansoh: Tender chicken cooked inside fresh bamboo stalks with tapioca leaves and lemongrass over an open fire.\n"
-                "• Kek Lapis Sarawak: Vibrant, intricately pattern-layered cakes famous for gifts and celebrations!"
-            )
-        elif "cpf" in prompt_lower or "singapore" in prompt_lower:
-            answer = (
-                "For Singapore Government CPF File Upload:\n"
-                "• CPF Board uses the standard CPF PAL / CPF EZPay file specification (.dat / .txt format).\n"
-                "• Monthly totals (Ordinary Wages + Additional Wages) are formatted into the PAL file structure for direct upload to the CPF EZPay portal.\n"
-                "• To create an automated CPF file generator inside Odoo, ask me: 'Build me an HR CPF module'!"
-            )
-        elif "world cup" in prompt_lower:
-            answer = "The 2026 FIFA World Cup will be hosted across Canada, Mexico, and the United States in June-July 2026!"
-        else:
-            answer = f"I analyzed your question: '{user_prompt}'.\n\nAs your AI Assistant ({provider_label}), I am ready to provide recommendations, answer general queries, or generate custom Odoo modules!"
+            for model in model_endpoints:
+                urls = [
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+                    f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={api_key}"
+                ]
+                for url in urls:
+                    headers = {'Content-Type': 'application/json'}
+                    try:
+                        req = urllib.request.Request(url, data=json_data, headers=headers)
+                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=10) as response:
+                            res_data = json.loads(response.read().decode('utf-8'))
+                            candidates = res_data.get('candidates', [])
+                            if candidates:
+                                parts = candidates[0].get('content', {}).get('parts', [])
+                                if parts:
+                                    ai_text = parts[0].get('text', '').strip()
+                                    ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                                    return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
+                    except urllib.error.HTTPError as he:
+                        err_body = he.read().decode('utf-8') if he.fp else str(he)
+                        errors.append(f"HTTP {he.code}: {err_body[:140]}")
+                    except Exception as e:
+                        errors.append(f"Error: {str(e)[:140]}")
 
-        return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+            err_msg = errors[0] if errors else "Network timeout"
+            return {
+                'success': False,
+                'response': f"🤖 Jemi ({provider_label}):\n\n⚠️ Google API Status: {err_msg}"
+            }
+
+        return {
+            'success': False,
+            'response': "⚠️ API Key Missing: Please enter your Google Gemini API Key in Settings ➔ AI Studio Configuration and click Save!"
+        }
 
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'

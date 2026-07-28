@@ -35,11 +35,11 @@ export class JemiFloatingBot extends Component {
                             <div class="jemi-msg-content">
                                 <t t-out="msg.text"/>
                             </div>
-                            <!-- Copy Button for Bot Responses -->
+                            <!-- Copy Button for Bot Responses (Copies both Question & Response) -->
                             <div t-if="msg.sender == 'bot'" class="jemi-msg-actions">
-                                <button class="jemi-copy-btn" t-on-click="() => this.copyToClipboard(msg.text, msg_index)">
-                                    <t t-if="msg.copied">✓ Copied!</t>
-                                    <t t-else="">📋 Copy Text</t>
+                                <button class="jemi-copy-btn" t-on-click="() => this.copyBothQuestionAndResponse(msg_index)">
+                                    <t t-if="msg.copied">✓ Copied Question &amp; Response!</t>
+                                    <t t-else="">📋 Copy Q&amp;A</t>
                                 </button>
                             </div>
                         </div>
@@ -108,17 +108,30 @@ export class JemiFloatingBot extends Component {
         this.state.isExpanded = !this.state.isExpanded;
     }
 
-    copyToClipboard(text, msgIndex) {
+    copyBothQuestionAndResponse(msgIndex) {
+        let fullCombinedText = "";
+        
+        // Find preceding user question if available
+        if (msgIndex > 0 && this.state.messages[msgIndex - 1] && this.state.messages[msgIndex - 1].sender === "user") {
+            fullCombinedText += "User Question: " + this.state.messages[msgIndex - 1].text + "\n\n";
+        }
+        
+        // Add bot response text
+        if (this.state.messages[msgIndex]) {
+            fullCombinedText += this.state.messages[msgIndex].text;
+        }
+
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text);
+            navigator.clipboard.writeText(fullCombinedText);
         } else {
             const textarea = document.createElement("textarea");
-            textarea.value = text;
+            textarea.value = fullCombinedText;
             document.body.appendChild(textarea);
             textarea.select();
             document.execCommand("copy");
             document.body.removeChild(textarea);
         }
+
         if (this.state.messages[msgIndex]) {
             this.state.messages[msgIndex].copied = true;
             setTimeout(() => {
