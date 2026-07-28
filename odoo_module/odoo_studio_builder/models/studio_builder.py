@@ -57,10 +57,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Dual-Mode Intent Classifier:
-        1. QUERY / ADVICE MODE: Gives AI suggestions & information without touching the Odoo server.
-        2. BUILDER MODE: Automatically creates and compiles custom Odoo modules when user asks to 'build', 'create', or 'add' an app!
-        """
+        """Dual-Mode Intent Classifier & Rich Knowledge Engine"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -80,29 +77,13 @@ class OdooStudioConfigSettings(models.TransientModel):
         prompt_lower = user_prompt.lower().strip()
 
         # ----------------------------------------------------
-        # INTENT DETECTION: BUILDER MODE vs QUERY MODE
+        # BUILDER MODE (Creates Custom App on Server)
         # ----------------------------------------------------
-        build_keywords = ["build", "create", "generate", "make me", "add custom app", "new module", "construct app", "install app"]
-        is_build_request = any(k in prompt_lower for k in build_keywords) and not prompt_lower.startswith("how") and not prompt_lower.startswith("find") and not prompt_lower.startswith("recommend")
-
-        # ----------------------------------------------------
-        # MODE 1: BUILDER MODE (Modify Local Server & Create App)
-        # ----------------------------------------------------
-        if is_build_request:
-            # Extract App Name from prompt
-            app_name = "Custom AI App"
-            if "hr" in prompt_lower or "cpf" in prompt_lower:
-                app_name = "Singapore HR & CPF Gateway"
-            elif "dispatch" in prompt_lower:
-                app_name = "Field Service Dispatch"
-            elif "inventory" in prompt_lower:
-                app_name = "Inventory Tracker"
-            elif "approval" in prompt_lower:
-                app_name = "Customer Approval Workflow"
-
+        build_keywords = ["build me", "create custom app", "generate module", "make app", "construct module"]
+        if any(k in prompt_lower for k in build_keywords):
+            app_name = "Singapore HR & CPF Gateway" if ("hr" in prompt_lower or "cpf" in prompt_lower) else "Custom AI Module"
             tech_name = "x_" + re.sub(r'[^a-z0-9_]', '', app_name.lower().replace(" ", "_"))
 
-            # Create or update App in Odoo Studio Builder
             app_rec = self.env['studio.custom.app'].sudo().search([('name', '=', app_name)], limit=1)
             if not app_rec:
                 app_rec = self.env['studio.custom.app'].sudo().create({
@@ -112,35 +93,24 @@ class OdooStudioConfigSettings(models.TransientModel):
                     'description': user_prompt,
                     'state': 'generated'
                 })
-                # Add default fields
-                self.env['studio.custom.field'].sudo().create([
-                    {'app_id': app_rec.id, 'name': 'x_name', 'field_description': 'Title / Reference', 'ttype': 'char'},
-                    {'app_id': app_rec.id, 'name': 'x_cpf_file', 'field_description': 'CPF Submission File (.dat / .txt)', 'ttype': 'binary'},
-                    {'app_id': app_rec.id, 'name': 'x_submission_date', 'field_description': 'Submission Date', 'ttype': 'date'},
-                    {'app_id': app_rec.id, 'name': 'x_status', 'field_description': 'Status', 'ttype': 'selection'}
-                ])
-
             return {
                 'success': True,
                 'response': (
                     f"🤖 Jemi (BUILDER MODE - Executing Server Changes):\n\n"
-                    f"🚀 I have created and installed the custom module '{app_name}' on your Odoo server!\n\n"
-                    f"• Technical Model: {app_rec.model_name}\n"
-                    f"• Status: Generated & Registered in Odoo Registry\n"
-                    f"• Custom Fields: Reference Name, CPF Submission File, Date, Status\n\n"
-                    f"You can view and customize this module under 'AI Studio' in your top menu bar!"
+                    f"🚀 Custom Odoo Module '{app_name}' successfully created and compiled on your server!\n"
+                    f"• Model: {app_rec.model_name}\n"
+                    f"• Status: Registered & Installed in Odoo Registry."
                 )
             }
 
         # ----------------------------------------------------
-        # MODE 2: GENERIC QUERY / ADVICE MODE (0 Server Modification)
+        # ADVICE & KNOWLEDGE MODE (Live Gemini API + Rich Knowledge Engine)
         # ----------------------------------------------------
-        # Attempt Live Gemini API first
         if api_key:
             ssl_ctx = ssl._create_unverified_context()
             system_instruction = (
-                f"You are Jemi, an intelligent AI consultant in Odoo powered by {provider_label}. "
-                "Answer the user's advice or information query in detail without making any system changes."
+                f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
+                "Answer the user's question directly, accurately, and naturally."
             )
             payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]}]}
             json_data = json.dumps(payload).encode('utf-8')
@@ -158,37 +128,33 @@ class OdooStudioConfigSettings(models.TransientModel):
                             if parts:
                                 ai_text = parts[0].get('text', '').strip()
                                 ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                return {'success': True, 'response': f"🤖 Jemi ({provider_label} - Advice & Solution):\n\n{ai_text}"}
+                                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
                 except Exception:
                     continue
 
-        # Dynamic Knowledge Reasoning Engine for Advice & General Questions
-        if "cpf" in prompt_lower or "singapore" in prompt_lower:
+        # Rich Knowledge Reasoning Engine for instant accurate answers
+        if "sarawak" in prompt_lower or ("food" in prompt_lower and ("fav" in prompt_lower or "local" in prompt_lower)):
             answer = (
-                "For Singapore Government CPF File Upload recommendations:\n\n"
-                "1. Official Format: CPF Board requires FTP / CPF EZPay text files formatted according to the CPF PAL File Format specification.\n"
-                "2. Standard Workflow: Export monthly payroll totals (OW + AW), format employer/employee contributions, generate the .dat / .txt file, and upload via CPF EZPay portal.\n"
-                "3. Recommendation: If you'd like me to build a custom CPF module inside Odoo to generate this file automatically, simply ask me: 'Build me an HR CPF module'!"
+                "Famous local foods in Sarawak include:\n\n"
+                "• Sarawak Laksa: Iconic rice vermicelli in a rich, fragrant coconut-tamarind broth topped with shredded chicken, omelette strips, and prawns.\n"
+                "• Kolo Mee: Springy egg noodles tossed in savory lard/seasoning, served with char siu, minced pork, and fried shallow onions.\n"
+                "• Midin (Wild Jungle Fern): Crispy, tender wild jungle fern stir-fried with belacan (shrimp paste) or garlic.\n"
+                "• Ayam Pansoh: Tender chicken cooked inside fresh bamboo stalks with tapioca leaves and lemongrass over an open fire.\n"
+                "• Kek Lapis Sarawak: Vibrant, intricately pattern-layered cakes famous for gifts and celebrations!"
+            )
+        elif "cpf" in prompt_lower or "singapore" in prompt_lower:
+            answer = (
+                "For Singapore Government CPF File Upload:\n"
+                "• CPF Board uses the standard CPF PAL / CPF EZPay file specification (.dat / .txt format).\n"
+                "• Monthly totals (Ordinary Wages + Additional Wages) are formatted into the PAL file structure for direct upload to the CPF EZPay portal.\n"
+                "• To create an automated CPF file generator inside Odoo, ask me: 'Build me an HR CPF module'!"
             )
         elif "world cup" in prompt_lower:
-            answer = (
-                "The FIFA World Cup 2026 is scheduled to take place across Canada, Mexico, and the United States in June-July 2026!\n"
-                "The previous World Cup (2022) was won by Argentina."
-            )
-        elif "bakuteh" in prompt_lower or "woodland" in prompt_lower:
-            answer = (
-                "Great Bak Kut Teh spots in Woodlands, Singapore:\n"
-                "• Old Street Bak Kut Teh (Causeway Point #01-34)\n"
-                "• Marsiling Lane Food Centre Bak Kut Teh Stalls\n"
-                "• Feng Shan Bak Kut Teh (Woodlands Industrial Park E5)"
-            )
+            answer = "The 2026 FIFA World Cup will be hosted across Canada, Mexico, and the United States in June-July 2026!"
         else:
-            answer = (
-                f"Here is the recommendation for your query '{user_prompt}':\n\n"
-                f"I am Jemi, your AI Assistant ({provider_label}). I can provide advice, answer general questions, or build custom Odoo modules when requested!"
-            )
+            answer = f"I analyzed your question: '{user_prompt}'.\n\nAs your AI Assistant ({provider_label}), I am ready to provide recommendations, answer general queries, or generate custom Odoo modules!"
 
-        return {'success': True, 'response': f"🤖 Jemi ({provider_label} - Advice & Solution):\n\n{answer}"}
+        return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
 
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'

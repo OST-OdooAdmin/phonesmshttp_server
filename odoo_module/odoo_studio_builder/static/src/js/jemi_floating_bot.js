@@ -32,7 +32,16 @@ export class JemiFloatingBot extends Component {
                 <div class="jemi-chat-body">
                     <t t-foreach="state.messages" t-as="msg" t-key="msg_index">
                         <div t-attf-class="jemi-msg #{msg.sender == 'user' ? 'jemi-msg-user' : 'jemi-msg-bot'}">
-                            <t t-out="msg.text"/>
+                            <div class="jemi-msg-content">
+                                <t t-out="msg.text"/>
+                            </div>
+                            <!-- Copy Button for Bot Responses -->
+                            <div t-if="msg.sender == 'bot'" class="jemi-msg-actions">
+                                <button class="jemi-copy-btn" t-on-click="() => this.copyToClipboard(msg.text, msg_index)">
+                                    <t t-if="msg.copied">✓ Copied!</t>
+                                    <t t-else="">📋 Copy Text</t>
+                                </button>
+                            </div>
                         </div>
                     </t>
                     <div t-if="state.isLoading" class="jemi-msg jemi-msg-bot">
@@ -63,7 +72,8 @@ export class JemiFloatingBot extends Component {
             messages: [
                 {
                     sender: "bot",
-                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, or custom app requirements)!"
+                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, Sarawak food, or custom app requirements)!",
+                    copied: false
                 }
             ],
             isLoading: false
@@ -98,6 +108,27 @@ export class JemiFloatingBot extends Component {
         this.state.isExpanded = !this.state.isExpanded;
     }
 
+    copyToClipboard(text, msgIndex) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text);
+        } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+        }
+        if (this.state.messages[msgIndex]) {
+            this.state.messages[msgIndex].copied = true;
+            setTimeout(() => {
+                if (this.state.messages[msgIndex]) {
+                    this.state.messages[msgIndex].copied = false;
+                }
+            }, 2000);
+        }
+    }
+
     async sendMessage() {
         const text = this.state.inputMessage.trim ? this.state.inputMessage.trim() : this.state.inputMessage;
         if (!text || this.state.isLoading) return;
@@ -115,14 +146,15 @@ export class JemiFloatingBot extends Component {
             });
 
             if (res && res.response) {
-                this.state.messages.push({ sender: "bot", text: res.response });
+                this.state.messages.push({ sender: "bot", text: res.response, copied: false });
             } else {
-                this.state.messages.push({ sender: "bot", text: "⚠️ No response received from Gemini API." });
+                this.state.messages.push({ sender: "bot", text: "⚠️ No response received from Gemini API.", copied: false });
             }
         } catch (error) {
             this.state.messages.push({
                 sender: "bot",
-                text: "⚠️ Connection Error: " + (error.message || "Failed to reach Odoo server.")
+                text: "⚠️ Connection Error: " + (error.message || "Failed to reach Odoo server."),
+                copied: false
             });
         } finally {
             this.state.isLoading = false;
