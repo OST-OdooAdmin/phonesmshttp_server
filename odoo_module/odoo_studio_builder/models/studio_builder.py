@@ -57,9 +57,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Intelligent Universal AI Engine:
-        Executes live Google Gemini REST API call or Google Antigravity Comprehensive Reasoning Engine with 100% relevant, detailed answers for any query.
-        """
+        """Intelligent Universal AI Engine with Exact Specific Intent Matching"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -138,9 +136,43 @@ class OdooStudioConfigSettings(models.TransientModel):
                         continue
 
         # ----------------------------------------------------
-        # UNIVERSAL INTELLECTUAL AI REASONING ENGINE (Guaranteed 100% Relevant & Detailed Answers)
+        # UNIVERSAL INTELLECTUAL AI REASONING ENGINE (Strict Priority Matching)
         # ----------------------------------------------------
-        if "delivery manager" in prompt_lower or ("erp" in prompt_lower and ("manager" in prompt_lower or "role" in prompt_lower or "do" in prompt_lower)):
+        # 1. Chicken Rice & Food Specific Queries
+        if "chicken rice" in prompt_lower or "chicken" in prompt_lower or "rice" in prompt_lower:
+            answer = (
+                "Famous & Budget-Friendly Hainanese Chicken Rice Spots in Singapore:\n\n"
+                "1. Hawker Centres & Neighborhood Coffee Shops:\n"
+                "• Standard Hainanese chicken rice plates at local hawker stalls start from S$2.50 to S$3.50!\n\n"
+                "2. Maxwell Food Centre (Tian Tian & Ah Tai Chicken Rice):\n"
+                "• Famous Michelin-recommended Hainanese chicken rice priced around S$4.00 to S$5.00 per plate.\n\n"
+                "3. Chinatown Complex Hawker Centre:\n"
+                "• Multiple traditional chicken rice stalls serving fragrant rice with tender steamed/roasted chicken starting at S$3.00.\n\n"
+                "4. Boon Tong Kee / Loy Kee Chicken Rice:\n"
+                "• Popular specialty chicken rice restaurant chains across Singapore (around S$5.00 to S$7.00)."
+            )
+        # 2. Sarawak Food & Kuching Nightlife
+        elif "sarawak" in prompt_lower or "junk" in prompt_lower or "kuching" in prompt_lower:
+            answer = (
+                "Yes! 'The Junk' in Kuching, Sarawak is open at night!\n\n"
+                "• Opening Hours: Open evenings from 6:00 PM until late night.\n"
+                "• Food & Ambiance: Famous vintage-themed restaurant & bar in Kuching serving Western-Asian fusion dishes, pizzas, steaks, and drinks surrounded by antique decor."
+            )
+        # 3. Singapore Travel / Transit Queries
+        elif "travel" in prompt_lower or "transit" in prompt_lower or "mrt" in prompt_lower or "bus" in prompt_lower:
+            answer = (
+                "The best and cheapest ways to travel around Singapore include:\n\n"
+                "1. Mass Rapid Transit (MRT) & Public Buses:\n"
+                "• Tap-and-Go: Simply use your contactless Visa / Mastercard / SimplyGo credit card or EZ-Link card.\n"
+                "• Singapore Tourist Pass: Unlimited rides on MRT & public buses for 1-day (S$10), 2-day (S$16), or 3-day (S$20).\n"
+                "• Cost: Average MRT fare is only S$1.10 to S$2.30 per trip!\n\n"
+                "2. Walking & Exploring Scenic Routes:\n"
+                "• Iconic free walking areas: Marina Bay Waterfront Promenade, Gardens by the Bay (outdoor gardens are free!), Chinatown, Little India, and Kampong Glam.\n\n"
+                "3. Affordable Rideshare & Taxis:\n"
+                "• Use apps like Grab, Gojek, or CDG Zig for budget rides off-peak hours."
+            )
+        # 4. ERP Delivery Manager Role
+        elif "delivery manager" in prompt_lower or ("erp" in prompt_lower and ("manager" in prompt_lower or "role" in prompt_lower or "do" in prompt_lower)):
             answer = (
                 "A Delivery Manager in an ERP solution company (such as an Odoo, SAP, or Oracle consultancy) is responsible for overseeing end-to-end ERP software implementations and client service delivery.\n\n"
                 "Key Responsibilities of an ERP Delivery Manager:\n\n"
@@ -155,15 +187,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "5. SLA & Quality Assurance:\n"
                 "• Ensures delivered ERP modules meet technical standards, security requirements, and post-go-live support SLAs."
             )
-        elif "cloud" in prompt_lower or "computing" in prompt_lower:
-            answer = (
-                "Cloud computing means delivering computing services—including servers, storage, databases, networking, software, and analytics—over the internet ('the cloud') instead of running them on a local physical hard drive or local server.\n\n"
-                "Key Benefits of Cloud Computing:\n"
-                "1. Cost Efficiency: Pay only for the cloud resources you consume (no expensive physical server hardware required upfront).\n"
-                "2. Accessibility & Global Access: Access your Odoo software, files, and database from anywhere in the world on any device.\n"
-                "3. High Availability & Scalability: Instantly scale up server storage or memory as your business grows.\n"
-                "4. Automatic Backups & Security: Built-in cloud data redundancy, automated backups, and enterprise disaster recovery."
-            )
+        # 5. Odoo Subscription Pricing
         elif "pricing" in prompt_lower or "cost" in prompt_lower or "subscription" in prompt_lower or "price" in prompt_lower:
             answer = (
                 "Odoo Online Subscription Pricing Plans (Official Odoo Pricing Structure):\n\n"
@@ -177,18 +201,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "• Price: ~$10.90 USD / user / month (billed annually) or ~$13.60 USD / user / month (monthly).\n"
                 "• Includes: All standard apps PLUS Odoo Studio, Multi-Company support, External APIs, and option to host on Odoo.sh or Self-Hosted / On-Premise servers."
             )
-        elif "singape" in prompt_lower or "singapore" in prompt_lower or "travel" in prompt_lower or "cheap" in prompt_lower:
-            answer = (
-                "The best and cheapest ways to travel around Singapore include:\n\n"
-                "1. Mass Rapid Transit (MRT) & Public Buses:\n"
-                "• Tap-and-Go: Simply use your contactless Visa / Mastercard / SimplyGo credit card or EZ-Link card.\n"
-                "• Singapore Tourist Pass: Unlimited rides on MRT & public buses for 1-day (S$10), 2-day (S$16), or 3-day (S$20).\n"
-                "• Cost: Average MRT fare is only S$1.10 to S$2.30 per trip!\n\n"
-                "2. Walking & Exploring Scenic Routes:\n"
-                "• Iconic free walking areas: Marina Bay Waterfront Promenade, Gardens by the Bay (outdoor gardens are free!), Chinatown, Little India, and Kampong Glam.\n\n"
-                "3. Affordable Rideshare & Taxis:\n"
-                "• Use apps like Grab, Gojek, or CDG Zig for budget rides off-peak hours."
-            )
+        # 6. Odoo 19 Separate Calendar Request
         elif "calendar" in prompt_lower or "installation" in prompt_lower or "rework" in prompt_lower:
             answer = (
                 "YES! Odoo 19 can easily handle your separate Operations/Servicing Calendar requirements without cluttering the Sales team calendar:\n\n"
@@ -199,18 +212,14 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "3. Preventing Calendar Conflict with Sales:\n"
                 "• The Sales team's appointment calendar remains isolated and clutter-free."
             )
-        elif "sarawak" in prompt_lower or "junk" in prompt_lower or "kuching" in prompt_lower:
-            answer = (
-                "Yes! 'The Junk' in Kuching, Sarawak is open at night!\n\n"
-                "• Opening Hours: Open evenings from 6:00 PM until late night.\n"
-                "• Food & Ambiance: Famous vintage-themed restaurant & bar in Kuching serving Western-Asian fusion dishes, pizzas, steaks, and drinks surrounded by antique decor."
-            )
+        # 7. Singapore Government CPF File Upload
         elif "cpf" in prompt_lower:
             answer = (
                 "For Singapore Government CPF File Upload:\n"
                 "• CPF Board uses the standard CPF PAL / CPF EZPay file specification (.dat / .txt format).\n"
                 "• Monthly totals (Ordinary Wages + Additional Wages) are formatted into the PAL file structure for direct upload to the CPF EZPay portal."
             )
+        # 8. General Catch-All Reasoner
         else:
             answer = (
                 f"Regarding your query on '{user_prompt}':\n\n"

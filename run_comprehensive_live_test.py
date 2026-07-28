@@ -1,0 +1,33 @@
+import json
+import sys
+import odoo
+from odoo import api, SUPERUSER_ID
+
+odoo.tools.config.parse_config(["--db_host=db", "--db_user=odoo", "--db_password=odoo", "-d", "DreamHRsolution"])
+registry = odoo.registry("DreamHRsolution")
+
+test_cases = [
+    ("where is the cheapest chicken rice in singapore", ["chicken rice", "hawker", "tian tian"]),
+    ("yo jemi. what is the best way to travel in singape cheap", ["mrt", "buses", "tourist pass"]),
+    ("what does a delivery manager in a ERP solution company do", ["delivery manager", "implementation", "governance"]),
+    ("how much do odoo online subscription cost", ["pricing", "free plan", "standard plan"]),
+    ("is the junk in sarawak kuching open at night?", ["sarawak", "the junk", "night"])
+]
+
+with registry.cursor() as cr:
+    env = api.Environment(cr, SUPERUSER_ID, {})
+    all_passed = True
+    print("\n=================== STARTING COMPREHENSIVE LIVE TEST BATTERY ===================")
+    for idx, (query, expected_keywords) in enumerate(test_cases, 1):
+        res = env["res.config.settings"].action_chat_with_gemini(query)
+        response_text = res.get("response", "").lower()
+        passed = any(kw in response_text for kw in expected_keywords)
+        status = "PASSED ✅" if passed else "FAILED ❌"
+        if not passed:
+            all_passed = False
+        print(f"\n[Test {idx}/5] Query: '{query}'")
+        print(f"Status: {status}")
+        print(f"Sample Output: {res.get('response', '')[:250]}...")
+    print("\n=================== TEST BATTERY RESULT: " + ("ALL PASSED 100% SUCCESS" if all_passed else "FAILED") + " ===================")
+    if not all_passed:
+        sys.exit(1)
