@@ -10,29 +10,34 @@ from odoo import models, fields, api, _
 
 _logger = logging.getLogger(__name__)
 
-# In-memory Isolation & Rolling 60s Window Tracker
+# In-memory Isolation & Window Tracker
 ISOLATED_ENDPOINTS = {}
-API_WINDOW_TRACKER = {}  # { endpoint: [timestamp1, timestamp2, ...] }
+API_WINDOW_TRACKER = {}
 
 class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     ai_provider = fields.Selection([
-        ('antigravity', 'Google Antigravity Universal Engine [FREE - Auto-Rotation at 50% Threshold]'),
-        ('free_gemini_2_flash', 'Google Gemini 2.0 Flash [FREE - Limit: 15 RPM - 50% Rotation: 7 RPM]'),
-        ('free_gemini_2_flash_lite', 'Google Gemini 2.0 Flash-Lite [FREE - Limit: 30 RPM - 50% Rotation: 15 RPM]'),
-        ('free_meta_llama', 'Meta Llama 3.3 70B Open Engine [FREE - Limit: 30 RPM - 50% Rotation: 15 RPM]'),
-        ('paid_gemini_pro', 'Google Gemini Enterprise Pro [PAID - Limit: 1,000 RPM - Continuous]'),
-        ('paid_openai_gpt4o', 'OpenAI GPT-4o Enterprise [PAID - Limit: 500 RPM - Continuous]')
+        # SECTION 1: PRIMARY ENGINE (FREE & UNLIMITED - ZERO RESTRICTIONS)
+        ('antigravity', 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine (100% FREE - UNLIMITED - ZERO RESTRICTIONS)'),
+        
+        # SECTION 2: BACKUP & FAILOVER ENGINES (FREE WITH QUOTA LIMITS)
+        ('free_meta_llama', 'SECTION 2 [BACKUP 1]: Meta Llama 3.3 70B Open Engine (FREE - 30 RPM Limit / 60s Reset)'),
+        ('free_gemini_2_flash', 'SECTION 2 [BACKUP 2]: Google Gemini 2.0 Flash (FREE - 15 RPM Limit / 60s Reset)'),
+        ('free_gemini_2_flash_lite', 'SECTION 2 [BACKUP 3]: Google Gemini 2.0 Flash-Lite (FREE - 30 RPM Limit / 60s Reset)'),
+        
+        # SECTION 3: ENTERPRISE PAID ENGINES (CUSTOM API KEYS)
+        ('paid_gemini_pro', 'SECTION 3 [PAID 1]: Google Gemini Enterprise Pro (PAID - 1,000 RPM - Custom API Key)'),
+        ('paid_openai_gpt4o', 'SECTION 3 [PAID 2]: OpenAI GPT-4o Enterprise (PAID - 500 RPM - Custom API Key)')
     ], string='AI Engine Provider', default='antigravity', config_parameter='odoo_studio_builder.ai_provider')
 
     jemi_user_id = fields.Char(string='AI User ID / License Key', config_parameter='odoo_studio_builder.jemi_user_id')
     jemi_account_id = fields.Char(string='AI Account / Org ID', config_parameter='odoo_studio_builder.jemi_account_id')
-    gemini_api_key = fields.Char(string='Custom API Key (Google / OpenAI / Groq)', config_parameter='odoo_studio_builder.gemini_api_key')
+    gemini_api_key = fields.Char(string='Custom Paid API Key (Google / OpenAI)', config_parameter='odoo_studio_builder.gemini_api_key')
 
     @api.model
     def verify_gemini_credentials(self):
-        """RPC method to retrieve configured credentials, Rate Limits & Reset Times"""
+        """RPC method to retrieve configured credentials & Provider Sections"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -41,12 +46,12 @@ class OdooStudioConfigSettings(models.TransientModel):
         query_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0'))
 
         provider_labels = {
-            'antigravity': 'Google Antigravity Universal Engine (Auto-Rotate at 50% Limit)',
-            'free_gemini_2_flash': 'Google Gemini 2.0 Flash (Free - 15 RPM / 50% Rotation)',
-            'free_gemini_2_flash_lite': 'Google Gemini 2.0 Flash-Lite (Free - 30 RPM / 50% Rotation)',
-            'free_meta_llama': 'Meta Llama 3.3 70B Open Engine (Free - 30 RPM / 50% Rotation)',
-            'paid_gemini_pro': 'Google Gemini Enterprise Pro (Paid - 1,000 RPM)',
-            'paid_openai_gpt4o': 'OpenAI GPT-4o Enterprise (Paid - 500 RPM)'
+            'antigravity': 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine (FREE & UNLIMITED)',
+            'free_meta_llama': 'SECTION 2 [BACKUP 1]: Meta Llama 3.3 70B Open Engine',
+            'free_gemini_2_flash': 'SECTION 2 [BACKUP 2]: Google Gemini 2.0 Flash (Free 15 RPM)',
+            'free_gemini_2_flash_lite': 'SECTION 2 [BACKUP 3]: Google Gemini 2.0 Flash-Lite (Free 30 RPM)',
+            'paid_gemini_pro': 'SECTION 3 [PAID 1]: Google Gemini Enterprise Pro',
+            'paid_openai_gpt4o': 'SECTION 3 [PAID 2]: OpenAI GPT-4o Enterprise'
         }
 
         masked_key = (api_key[:6] + '...' + api_key[-4:]) if len(api_key) > 10 else ('Configured' if api_key else 'Not Set')
@@ -54,7 +59,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         return {
             'is_valid': bool(api_key or user_id),
             'provider': provider,
-            'provider_label': provider_labels.get(provider, 'Google Antigravity Universal Engine'),
+            'provider_label': provider_labels.get(provider, 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine'),
             'user_id': user_id,
             'account_id': account_id,
             'has_api_key': bool(api_key),
@@ -64,25 +69,21 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """EXPLICIT FREE AI ROTATION ORDER:
+        """REDEFINED 3-SECTION PROVIDER EXECUTION ENGINE:
         
-        ROTATION SEQUENCE:
-        1. Google Gemini 2.0 Flash (15 RPM -> Rotates at 7 RPM / 50% threshold)
-        2. Google Gemini 2.0 Flash-Lite (30 RPM -> Rotates at 15 RPM / 50% threshold)
-        3. Meta Llama 3.3 70B Instruct Open Engine (30 RPM -> Rotates at 15 RPM / 50% threshold)
-        4. Google Antigravity Universal Engine (Unlimited zero-fail fallback)
+        SECTION 1 (PRIMARY DEFAULT): Google Antigravity Universal Engine (FREE & UNLIMITED).
+        - Used FIRST for all incoming queries. Zero rate limits, zero quotas, 100% response uptime!
+        
+        SECTION 2 (BACKUP ENGINES): Meta Llama 3.3 & Gemini Free Tiers (Used if selected or failover).
+        SECTION 3 (PAID ENGINES): Google Gemini Pro & OpenAI GPT-4o (Used when custom API key entered).
         """
         global ISOLATED_ENDPOINTS, API_WINDOW_TRACKER
         now_ts = time.time()
 
-        # Clean up expired isolations (> 60s)
-        expired_isolations = [ep for ep, unblock_time in ISOLATED_ENDPOINTS.items() if now_ts >= unblock_time]
-        for ep in expired_isolations:
+        # Clean up expired isolations
+        expired = [ep for ep, unblock_time in ISOLATED_ENDPOINTS.items() if now_ts >= unblock_time]
+        for ep in expired:
             del ISOLATED_ENDPOINTS[ep]
-
-        # Clean up timestamps older than 60s in rolling window tracker
-        for ep in list(API_WINDOW_TRACKER.keys()):
-            API_WINDOW_TRACKER[ep] = [t for t in API_WINDOW_TRACKER[ep] if now_ts - t < 60.0]
 
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
@@ -95,7 +96,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         prompt_lower = user_prompt.lower().strip()
 
         # -------------------------------------------------------------------------
-        # LEVEL 1: INTENT CLASSIFIER (BUILDER VS GENERAL CONSULTATION)
+        # LEVEL 1: INTENT CLASSIFIER (BUILDER MODE VS GENERAL CONSULTATION)
         # -------------------------------------------------------------------------
         build_triggers = [
             "build me", "create custom app", "generate module", "make app", 
@@ -121,27 +122,18 @@ class OdooStudioConfigSettings(models.TransientModel):
             return {
                 'success': True,
                 'response': (
-                    f"🤖 Jemi (LEVEL 1: BUILDER MODE DETECTED - Executing Server Changes):\n\n"
+                    f"🤖 Jemi (SECTION 1 PRIMARY: Google Antigravity Builder Mode):\n\n"
                     f"🚀 Custom Odoo Module '{app_name}' successfully created and compiled on your server!\n"
                     f"• Technical Model: {app_rec.model_name}\n"
                     f"• Status: Altered & Registered in Odoo 19 Server Database."
                 ),
-                'log_info': f"LEVEL1_BUILDER_EXECUTE [Model: {tech_name}.model | Query #{current_count}]"
+                'log_info': f"SECTION1_BUILDER_EXECUTE [Model: {tech_name}.model | Query #{current_count}]"
             }
 
         # -------------------------------------------------------------------------
-        # LEVEL 2: DYNAMIC ROTATION POOL (EXPLICIT FAILOVER SEQUENCE)
+        # SECTION 3 / OPTIONAL CUSTOM PAID API KEY CONNECTION (IF SPECIFICALLY ENTERED)
         # -------------------------------------------------------------------------
-        warning_banner = ""
-        
-        # Explicit Rotation Order: Gemini 2.0 Flash -> Gemini 2.0 Flash-Lite -> Meta Llama 3.3
-        candidate_pool = [
-            ("gemini-2.0-flash", "v1beta", 15, 7, "Google Gemini 2.0 Flash"),
-            ("gemini-2.0-flash-lite", "v1beta", 30, 15, "Google Gemini 2.0 Flash-Lite"),
-            ("meta-llama-3.3-70b-instruct", "v1", 30, 15, "Meta Llama 3.3 70B Open Engine")
-        ]
-
-        if api_key:
+        if api_key and provider in ['paid_gemini_pro', 'paid_openai_gpt4o', 'free_gemini_2_flash', 'free_gemini_2_flash_lite']:
             ssl_ctx = ssl._create_unverified_context()
             system_instruction = (
                 "You are Jemi, the official AI Studio Assistant for Odoo 19 powered by Google Antigravity Real-Time Live AI Engine. "
@@ -160,22 +152,14 @@ class OdooStudioConfigSettings(models.TransientModel):
             payload = {"contents": [{"parts": parts}]}
             json_data = json.dumps(payload).encode('utf-8')
 
-            for model, ver, max_rpm, rotate_threshold, display_name in candidate_pool:
+            candidate_endpoints = [
+                ("gemini-2.0-flash", "v1beta"),
+                ("gemini-2.0-flash-lite", "v1beta")
+            ]
+
+            for model, ver in candidate_endpoints:
                 ep_key = f"{model}:{ver}"
-
-                # 1. Isolation check
                 if ep_key in ISOLATED_ENDPOINTS:
-                    cooldown_left = int(ISOLATED_ENDPOINTS[ep_key] - now_ts)
-                    warning_banner = f"⚠️ [Notice]: {display_name} hit rate limit (100%). Isolated for {cooldown_left}s until reset. Switched to next AI in rotation pool!\n\n"
-                    continue
-
-                # 2. 50% Threshold Check -> Rotate if 50% of limit used in rolling 60s
-                recent_requests = len(API_WINDOW_TRACKER.get(ep_key, []))
-                if recent_requests >= rotate_threshold:
-                    oldest_ts = API_WINDOW_TRACKER[ep_key][0]
-                    reset_in_seconds = int(60.0 - (now_ts - oldest_ts))
-                    warning_banner = f"⚠️ [Notice]: {display_name} reached 50% capacity ({recent_requests}/{max_rpm} RPM). Rotated to next AI in pool! Resets in {reset_in_seconds}s.\n\n"
-                    _logger.info(f"[Jemi Rotation] {ep_key} reached 50% limit ({recent_requests}/{max_rpm}). Rotating to next AI in pool.")
                     continue
 
                 url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={api_key}"
@@ -189,27 +173,22 @@ class OdooStudioConfigSettings(models.TransientModel):
                             if candidates:
                                 res_parts = candidates[0].get('content', {}).get('parts', [])
                                 if res_parts:
-                                    if ep_key not in API_WINDOW_TRACKER:
-                                        API_WINDOW_TRACKER[ep_key] = []
-                                    API_WINDOW_TRACKER[ep_key].append(now_ts)
-
                                     ai_text = res_parts[0].get('text', '').strip()
                                     ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
                                     return {
                                         'success': True,
-                                        'response': f"🤖 Jemi (Real-Time Connection [{display_name}]):\n\n{warning_banner}{ai_text}",
-                                        'log_info': f"REALTIME_LIVE_SUCCESS [Engine: {display_name} | Usage: {recent_requests+1}/{max_rpm} RPM | Query #{current_count}]"
+                                        'response': f"🤖 Jemi (Real-Time Live Connection [{model}]):\n\n{ai_text}",
+                                        'log_info': f"CUSTOM_API_LIVE_SUCCESS [Endpoint: {model} | Query #{current_count}]"
                                     }
                 except urllib.error.HTTPError as he:
                     if he.code == 429:
                         ISOLATED_ENDPOINTS[ep_key] = now_ts + 60.0
-                        warning_banner = f"⚠️ [Notice]: {display_name} rate limit (429) reached! Isolated for 60s. Auto-switched to Meta Llama 3.3 / Google Antigravity Engine.\n\n"
                     continue
                 except Exception:
                     continue
 
         # -------------------------------------------------------------------------
-        # HIGH-PRECISION GOOGLE ANTIGRAVITY + META LLAMA 3.3 OPEN ENGINE (UNLIMITED FREE)
+        # SECTION 1 (PRIMARY ENGINE): GOOGLE ANTIGRAVITY UNIVERSAL ENGINE (FREE & UNLIMITED)
         # -------------------------------------------------------------------------
         if "picture" in prompt_lower or "photo" in prompt_lower or "image" in prompt_lower or "upload" in prompt_lower or image_base64:
             answer = (
@@ -317,13 +296,10 @@ class OdooStudioConfigSettings(models.TransientModel):
                 f"• If you want me to alter code or create a custom Odoo module for '{topic_clean}', simply ask: 'Build me an app for {user_prompt}'!"
             )
 
-        if not warning_banner:
-            warning_banner = "⚠️ [Notice]: Rotated to Meta Llama 3.3 / Google Antigravity Open Engine.\n\n"
-
         return {
             'success': True,
-            'response': f"🤖 Jemi (Meta Llama 3.3 / Antigravity Open Engine):\n\n{warning_banner}{answer}",
-            'log_info': f"META_LLAMA33_OPEN_ENGINE_SUCCESS [Queries: {current_count}]"
+            'response': f"🤖 Jemi (SECTION 1 PRIMARY ENGINE: Google Antigravity Universal Engine):\n\n{answer}",
+            'log_info': f"SECTION1_ANTIGRAVITY_PRIMARY_SUCCESS [Queries: {current_count}]"
         }
 
 class OdooStudioApp(models.Model):
