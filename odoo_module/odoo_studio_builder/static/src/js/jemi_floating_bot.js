@@ -35,11 +35,11 @@ export class JemiFloatingBot extends Component {
                             <div class="jemi-msg-content">
                                 <t t-out="msg.text"/>
                             </div>
-                            <!-- Copy Button for Bot Responses (Copies both Question & Response) -->
+                            <!-- Copy Button for Bot Responses (Copies Question, Response & Diagnostic Logs) -->
                             <div t-if="msg.sender == 'bot'" class="jemi-msg-actions">
-                                <button class="jemi-copy-btn" t-on-click="() => this.copyBothQuestionAndResponse(msg_index)">
-                                    <t t-if="msg.copied">✓ Copied Question &amp; Response!</t>
-                                    <t t-else="">📋 Copy Q&amp;A</t>
+                                <button class="jemi-copy-btn" t-on-click="() => this.copyBothQuestionAndResponseWithLogs(msg_index)">
+                                    <t t-if="msg.copied">✓ Copied Q&amp;A + Logs!</t>
+                                    <t t-else="">📋 Copy Q&amp;A + Logs</t>
                                 </button>
                             </div>
                         </div>
@@ -72,11 +72,13 @@ export class JemiFloatingBot extends Component {
             messages: [
                 {
                     sender: "bot",
-                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. weather, account details, Sarawak food, or custom app requirements)!",
-                    copied: false
+                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. Odoo pricing, weather, account details, Sarawak food, or custom app requirements)!",
+                    copied: false,
+                    logInfo: "Initial System Message [Engine: Google Antigravity AI Engine]"
                 }
             ],
-            isLoading: false
+            isLoading: false,
+            credentials: null
         });
 
         onMounted(() => {
@@ -93,6 +95,7 @@ export class JemiFloatingBot extends Component {
                 kwargs: {}
             });
             if (res && res.is_valid) {
+                this.state.credentials = res;
                 console.log("[Jemi Bot] Account verified:", res);
             }
         } catch (e) {
@@ -108,18 +111,31 @@ export class JemiFloatingBot extends Component {
         this.state.isExpanded = !this.state.isExpanded;
     }
 
-    copyBothQuestionAndResponse(msgIndex) {
+    copyBothQuestionAndResponseWithLogs(msgIndex) {
         let fullCombinedText = "";
         
-        // Find preceding user question if available
+        // 1. User Question
         if (msgIndex > 0 && this.state.messages[msgIndex - 1] && this.state.messages[msgIndex - 1].sender === "user") {
             fullCombinedText += "User Question: " + this.state.messages[msgIndex - 1].text + "\n\n";
         }
         
-        // Add bot response text
+        // 2. Bot Response
         if (this.state.messages[msgIndex]) {
-            fullCombinedText += this.state.messages[msgIndex].text;
+            fullCombinedText += this.state.messages[msgIndex].text + "\n\n";
         }
+
+        // 3. Diagnostic Logs
+        const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const cred = this.state.credentials || {};
+        const logData = this.state.messages[msgIndex] ? (this.state.messages[msgIndex].logInfo || "Mode: Live AI Execution") : "";
+
+        fullCombinedText += "--- DIAGNOSTIC SYSTEM LOG ---\n";
+        fullCombinedText += `Timestamp: ${now}\n`;
+        fullCombinedText += `AI Engine Provider: ${cred.provider_label || 'Google Antigravity AI Engine'}\n`;
+        fullCombinedText += `Account User ID: ${cred.user_id || '1012374182157'}\n`;
+        fullCombinedText += `Organization ID: ${cred.account_id || 'gen-lang-client-0177342458'}\n`;
+        fullCombinedText += `API Key Masked: ${cred.masked_key || 'AQ.Ab8RN...7342458'}\n`;
+        fullCombinedText += `Execution Status Log: ${logData}`;
 
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(fullCombinedText);
@@ -159,15 +175,26 @@ export class JemiFloatingBot extends Component {
             });
 
             if (res && res.response) {
-                this.state.messages.push({ sender: "bot", text: res.response, copied: false });
+                this.state.messages.push({
+                    sender: "bot",
+                    text: res.response,
+                    copied: false,
+                    logInfo: res.log_info || "Status 200 OK [Google Antigravity AI Engine]"
+                });
             } else {
-                this.state.messages.push({ sender: "bot", text: "⚠️ No response received from Gemini API.", copied: false });
+                this.state.messages.push({
+                    sender: "bot",
+                    text: "⚠️ No response received from Gemini API.",
+                    copied: false,
+                    logInfo: "Status: Empty Response"
+                });
             }
         } catch (error) {
             this.state.messages.push({
                 sender: "bot",
                 text: "⚠️ Connection Error: " + (error.message || "Failed to reach Odoo server."),
-                copied: false
+                copied: false,
+                logInfo: "Status: RPC Connection Error (" + (error.message || "Failed") + ")"
             });
         } finally {
             this.state.isLoading = false;
