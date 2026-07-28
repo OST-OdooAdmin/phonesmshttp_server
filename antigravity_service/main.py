@@ -9,24 +9,16 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 DATA_FILE = "/app/antigravity_data.json"
 
-# ============================================================================
-# MULTI-PROVIDER AUTO-SWITCH CIRCUIT BREAKER ENGINE
-# Providers from different companies have INDEPENDENT rate limits & credit pools.
-# If one hits a limit, we instantly switch to the next available provider.
-# ============================================================================
-
 PROVIDER_REGISTRY = [
-    # --- SECTION 1: FREE & UNLIMITED (Primary Default - Local Reasoning) ---
     {
         "id": "antigravity_local",
         "name": "Google Antigravity Local Reasoning Engine",
         "section": 1,
         "type": "local",
         "credit_pool": "antigravity",
-        "rpm_limit": 0,  # unlimited
+        "rpm_limit": 0,
         "isolation_seconds": 0,
     },
-    # --- SECTION 2: PAID ENTERPRISE APIs (Independent Credit Pools) ---
     {
         "id": "gemini_flash",
         "name": "Google Gemini 2.0 Flash",
@@ -97,12 +89,9 @@ PROVIDER_REGISTRY = [
     },
 ]
 
-# In-memory circuit breaker state
-CIRCUIT_BREAKER = {}  # provider_id -> {"isolated_until": timestamp, "reason": str}
-
+CIRCUIT_BREAKER = {}
 
 def get_api_key(env_key):
-    """Get API key from environment or settings file."""
     key = os.environ.get(env_key, "")
     if not key:
         data = load_data()
@@ -110,9 +99,7 @@ def get_api_key(env_key):
         key = keys.get(env_key, "")
     return key.strip()
 
-
 def is_provider_available(provider):
-    """Check if a provider is available (not isolated by circuit breaker)."""
     pid = provider["id"]
     if pid in CIRCUIT_BREAKER:
         cb = CIRCUIT_BREAKER[pid]
@@ -126,9 +113,7 @@ def is_provider_available(provider):
             return False
     return True
 
-
 def isolate_provider(provider, reason="rate_limit"):
-    """Isolate a provider for its configured isolation period."""
     pid = provider["id"]
     duration = provider.get("isolation_seconds", 60)
     CIRCUIT_BREAKER[pid] = {
@@ -138,16 +123,12 @@ def isolate_provider(provider, reason="rate_limit"):
         "reset_in_seconds": duration,
     }
 
-
 def isolate_credit_pool(pool_name, reason="credit_exhausted"):
-    """Isolate ALL providers sharing the same credit pool."""
     for p in PROVIDER_REGISTRY:
         if p.get("credit_pool") == pool_name and p["type"] != "local":
             isolate_provider(p, reason)
 
-
 def get_circuit_breaker_status():
-    """Return current circuit breaker state for all providers."""
     now = time.time()
     status = []
     for p in PROVIDER_REGISTRY:
@@ -169,22 +150,12 @@ def get_circuit_breaker_status():
         status.append(entry)
     return status
 
-
-# ============================================================================
-# LIVE API CALLERS (Each provider type has its own HTTP caller)
-# ============================================================================
-
 def call_gemini_api(provider, prompt):
-    """Call Google Gemini API."""
     api_key = get_api_key(provider["env_key"])
     model = provider["model"]
     ver = provider["api_version"]
     url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={api_key}"
-
-    payload = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}]
-    }).encode("utf-8")
-
+    payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
     ctx = ssl._create_unverified_context()
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
@@ -197,12 +168,9 @@ def call_gemini_api(provider, prompt):
                     return parts[0].get("text", "").strip()
     return None
 
-
 def call_openai_api(provider, prompt):
-    """Call OpenAI ChatCompletion API."""
     api_key = get_api_key(provider["env_key"])
     url = "https://api.openai.com/v1/chat/completions"
-
     payload = json.dumps({
         "model": provider["model"],
         "messages": [
@@ -211,7 +179,6 @@ def call_openai_api(provider, prompt):
         ],
         "max_tokens": 1024,
     }).encode("utf-8")
-
     ctx = ssl._create_unverified_context()
     req = urllib.request.Request(url, data=payload, headers={
         "Content-Type": "application/json",
@@ -225,18 +192,14 @@ def call_openai_api(provider, prompt):
                 return choices[0].get("message", {}).get("content", "").strip()
     return None
 
-
 def call_anthropic_api(provider, prompt):
-    """Call Anthropic Claude Messages API."""
     api_key = get_api_key(provider["env_key"])
     url = "https://api.anthropic.com/v1/messages"
-
     payload = json.dumps({
         "model": provider["model"],
         "max_tokens": 1024,
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
-
     ctx = ssl._create_unverified_context()
     req = urllib.request.Request(url, data=payload, headers={
         "Content-Type": "application/json",
@@ -251,22 +214,14 @@ def call_anthropic_api(provider, prompt):
                 return content[0].get("text", "").strip()
     return None
 
-
 API_CALLERS = {
-    "api": call_gemini_api,      # Gemini
-    "openai": call_openai_api,   # OpenAI
-    "anthropic": call_anthropic_api,  # Anthropic Claude
+    "api": call_gemini_api,
+    "openai": call_openai_api,
+    "anthropic": call_anthropic_api,
 }
 
-
-# ============================================================================
-# LOCAL REASONING ENGINE (Section 1 Fallback - Always Available)
-# ============================================================================
-
 def local_reasoning_engine(user_prompt):
-    """Built-in factual reasoning engine. Always available, zero rate limits."""
     prompt_lower = user_prompt.lower().strip()
-
     if "yio chu kang" in prompt_lower or "swimming pool" in prompt_lower or "swimming complex" in prompt_lower or "activesg" in prompt_lower:
         return (
             "Yio Chu Kang Swimming Complex Operating Status & Schedule (SportSG ActiveSG Facility):\n\n"
@@ -333,32 +288,17 @@ def local_reasoning_engine(user_prompt):
             "3. Client stakeholder escalation point."
         )
     else:
-        return None  # Signal: no local answer, try live APIs
-
-
-# ============================================================================
-# MASTER AI DISPATCHER (Auto-Switch + Circuit Breaker)
-# ============================================================================
+        return None
 
 def dispatch_ai_query(user_prompt):
-    """
-    Master dispatcher that tries providers in order:
-    1. Local reasoning engine (always available, zero limits)
-    2. Live API providers (auto-switch on rate limit / credit exhaustion)
-
-    Returns (answer_text, provider_name, switch_log)
-    """
     switch_log = []
-
-    # STEP 1: Try local reasoning engine first (Section 1 - unlimited)
     local_answer = local_reasoning_engine(user_prompt)
     if local_answer:
         return local_answer, "Google Antigravity Local Engine", switch_log
 
-    # STEP 2: Try live API providers in order, skipping isolated ones
     for provider in PROVIDER_REGISTRY:
         if provider["type"] == "local":
-            continue  # already tried
+            continue
 
         if not is_provider_available(provider):
             cb = CIRCUIT_BREAKER.get(provider["id"], {})
@@ -390,7 +330,6 @@ def dispatch_ai_query(user_prompt):
             isolate_provider(provider, "connection_error")
             switch_log.append(f"❌ ERROR {provider['name']}: {str(e)[:80]} → isolated")
 
-    # STEP 3: Fallback generic response if all APIs unavailable
     fallback = (
         f"Analysis for '{user_prompt.strip()}':\n\n"
         f"All live AI providers are currently rate-limited or unavailable.\n"
@@ -402,11 +341,6 @@ def dispatch_ai_query(user_prompt):
         fallback += f"• {entry['name']}: {status}\n"
 
     return fallback, "Fallback (All Providers Busy)", switch_log
-
-
-# ============================================================================
-# PERSISTENT DATA STORAGE
-# ============================================================================
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -421,7 +355,7 @@ def load_data():
             "provider_label": "Google Antigravity Universal Engine (AUTO-SWITCH MULTI-PROVIDER)",
             "user_id": "1012374182157",
             "account_id": "gen-lang-client-0177342458",
-            "query_count": 57,
+            "query_count": 58,
         },
         "api_keys": {},
         "logs": [],
@@ -435,10 +369,122 @@ def save_data(data):
     except Exception:
         pass
 
+WEB_UI_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Antigravity AI Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; display: flex; height: 100vh; }
+        #sidebar { width: 300px; background: #1e293b; border-right: 1px solid #334155; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        #main { flex: 1; display: flex; flex-direction: column; height: 100vh; }
+        h1 { font-size: 1.2rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+        .card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 15px; }
+        .card h2 { font-size: 0.85rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; letter-spacing: 1px; }
+        .provider-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid #1e293b; }
+        .provider-item:last-child { border-bottom: none; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .badge-ok { background: #065f46; color: #34d399; }
+        .badge-off { background: #7f1d1d; color: #f87171; }
+        #chat-window { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 80%; padding: 14px 18px; border-radius: 12px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; }
+        .user-msg { background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .ai-msg { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .meta-tag { font-size: 0.75rem; color: #38bdf8; margin-bottom: 6px; font-weight: 600; }
+        #input-area { padding: 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; color: white; font-size: 0.95rem; outline: none; }
+        input[type="text"]:focus { border-color: #38bdf8; }
+        button { background: #0284c7; color: white; border: none; border-radius: 8px; padding: 12px 24px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #0369a1; }
+        .quick-btn { background: #334155; font-size: 0.8rem; padding: 8px 12px; width: 100%; text-align: left; margin-bottom: 6px; border-radius: 6px; }
+        .quick-btn:hover { background: #475569; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h1>🚀 Google Antigravity</h1>
+        <div class="card">
+            <h2>Circuit Breaker Status</h2>
+            <div id="providers-list">Loading providers...</div>
+        </div>
+        <div class="card">
+            <h2>Quick Test Prompts</h2>
+            <button class="quick-btn" onclick="sendPrompt('is the swimming pool in singapore yio chu kang open today')">🏊 Yio Chu Kang Pool</button>
+            <button class="quick-btn" onclick="sendPrompt('what the average earning of singapore in 2025')">🇸🇬 SG Salary 2025</button>
+            <button class="quick-btn" onclick="sendPrompt('is male and female human has bady and what is the factor that will make sure they have a male successory')">🧬 Biological Genetics</button>
+            <button class="quick-btn" onclick="sendPrompt('Build me an app for field service calendar')">🛠️ Build Odoo Module</button>
+        </div>
+    </div>
+    <div id="main">
+        <div id="chat-window">
+            <div class="message ai-msg">
+                <div class="meta-tag">🤖 Google Antigravity AI Console</div>
+                Welcome! Connected to the Docker Microservice on port 5005. Type your question or prompt below to chat with Antigravity!
+            </div>
+        </div>
+        <div id="input-area">
+            <input type="text" id="prompt-input" placeholder="Type your instruction or question..." onkeypress="if(event.key==='Enter') sendCurrentPrompt()">
+            <button onclick="sendCurrentPrompt()">Send Prompt</button>
+        </div>
+    </div>
 
-# ============================================================================
-# HTTP SERVER
-# ============================================================================
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/circuit-breaker');
+                const data = await res.json();
+                const container = document.getElementById('providers-list');
+                container.innerHTML = data.providers.map(p => `
+                    <div class="provider-item">
+                        <span>${p.name}</span>
+                        <span class="badge ${p.available ? 'badge-ok' : 'badge-off'}">${p.available ? 'OK' : 'BUSY'}</span>
+                    </div>
+                `).join('');
+            } catch (e) {}
+        }
+
+        async function sendPrompt(text) {
+            const chatWin = document.getElementById('chat-window');
+            chatWin.innerHTML += `<div class="message user-msg">${text}</div>`;
+            chatWin.scrollTop = chatWin.scrollHeight;
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: text })
+                });
+                const data = await res.json();
+                chatWin.innerHTML += `
+                    <div class="message ai-msg">
+                        <div class="meta-tag">🤖 ${data.provider_used || 'Antigravity'}</div>
+                        ${data.response.replace(/^🤖 Jemi \([^)]+\):\n\n/, '')}
+                    </div>`;
+            } catch (e) {
+                chatWin.innerHTML += `<div class="message ai-msg" style="color: #f87171;">Error connecting to Antigravity service.</div>`;
+            }
+            chatWin.scrollTop = chatWin.scrollHeight;
+            fetchStatus();
+        }
+
+        function sendCurrentPrompt() {
+            const input = document.getElementById('prompt-input');
+            const val = input.value.strip ? input.value.trim() : input.value;
+            if (val) {
+                sendPrompt(val);
+                input.value = '';
+            }
+        }
+
+        fetchStatus();
+        setInterval(fetchStatus, 10000);
+    </script>
+</body>
+</html>
+"""
 
 class AntigravityHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload, code=200):
@@ -449,6 +495,13 @@ class AntigravityHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
 
+    def _send_html(self, html_content, code=200):
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(html_content.encode("utf-8"))
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -458,7 +511,9 @@ class AntigravityHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         data = load_data()
-        if self.path == "/settings":
+        if self.path in ("/", "/ui", "/index.html"):
+            self._send_html(WEB_UI_HTML)
+        elif self.path == "/settings":
             self._send_json(data["settings"])
         elif self.path == "/logs":
             self._send_json({"logs": data["logs"][:50], "count": len(data["logs"])})
@@ -474,16 +529,10 @@ class AntigravityHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "status": "online",
                 "service": "Google Antigravity AI Engine (Auto-Switch Multi-Provider)",
-                "features": ["auto_switch", "circuit_breaker", "multi_provider", "rate_limit_rotation"],
                 "endpoints": {
-                    "POST /chat": "Send a prompt, get AI response with auto-switching",
-                    "GET /settings": "View engine settings",
-                    "POST /settings": "Update engine settings",
-                    "GET /logs": "View communication logs",
-                    "GET /history": "View conversation history",
-                    "GET /circuit-breaker": "View provider availability & isolation status",
-                    "GET /api-keys": "View configured API keys (masked)",
-                    "POST /api-keys": "Configure API keys for paid providers",
+                    "GET /": "Interactive Antigravity Web Chat Console UI",
+                    "POST /chat": "Send prompt, get AI response",
+                    "GET /circuit-breaker": "Provider isolation status",
                 },
             })
 
@@ -497,7 +546,6 @@ class AntigravityHandler(BaseHTTPRequestHandler):
 
         data = load_data()
 
-        # --- Update Settings ---
         if self.path == "/settings":
             new_settings = req_json.get("settings", {})
             data["settings"].update(new_settings)
@@ -505,7 +553,6 @@ class AntigravityHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "updated", "settings": data["settings"]})
             return
 
-        # --- Configure API Keys ---
         if self.path == "/api-keys":
             new_keys = req_json.get("api_keys", {})
             if "api_keys" not in data:
@@ -515,7 +562,6 @@ class AntigravityHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "keys_updated", "message": f"Updated {len(new_keys)} API key(s)"})
             return
 
-        # --- Chat Endpoint (Auto-Switch Multi-Provider) ---
         user_prompt = req_json.get("prompt", "").strip()
         if not user_prompt:
             self._send_json({"status": "error", "message": "Empty prompt"}, 400)
@@ -524,12 +570,9 @@ class AntigravityHandler(BaseHTTPRequestHandler):
         data["settings"]["query_count"] = data["settings"].get("query_count", 0) + 1
         current_count = data["settings"]["query_count"]
 
-        # Dispatch through multi-provider auto-switch engine
         answer, provider_used, switch_log = dispatch_ai_query(user_prompt)
-
         resp_formatted = f"🤖 Jemi ({provider_used}):\n\n{answer}"
 
-        # Record logs
         ts_str = time.strftime("%Y-%m-%d %H:%M:%S")
         log_entry = {
             "timestamp": ts_str,
@@ -561,17 +604,13 @@ class AntigravityHandler(BaseHTTPRequestHandler):
         })
 
     def log_message(self, format, *args):
-        pass  # Suppress default HTTP logs
-
+        pass
 
 def run_server():
     port = int(os.environ.get("PORT", "5005"))
     server = HTTPServer(("0.0.0.0", port), AntigravityHandler)
-    print(f"Google Antigravity AI Engine (Auto-Switch Multi-Provider) running on port {port}...")
-    print(f"Providers registered: {len(PROVIDER_REGISTRY)}")
-    print(f"Credit pools: {set(p['credit_pool'] for p in PROVIDER_REGISTRY)}")
+    print(f"Google Antigravity AI Engine running on port {port} with Web Console at http://0.0.0.0:{port}/")
     server.serve_forever()
-
 
 if __name__ == "__main__":
     run_server()
