@@ -32,6 +32,10 @@ export class JemiFloatingBot extends Component {
                 <div class="jemi-chat-body">
                     <t t-foreach="state.messages" t-as="msg" t-key="msg_index">
                         <div t-attf-class="jemi-msg #{msg.sender == 'user' ? 'jemi-msg-user' : 'jemi-msg-bot'}">
+                            <!-- Image Attachment Preview if present -->
+                            <div t-if="msg.imageUrl" class="jemi-img-attachment">
+                                <img t-att-src="msg.imageUrl" alt="Uploaded Image" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px;"/>
+                            </div>
                             <div class="jemi-msg-content">
                                 <t t-out="msg.text"/>
                             </div>
@@ -45,15 +49,27 @@ export class JemiFloatingBot extends Component {
                         </div>
                     </t>
                     <div t-if="state.isLoading" class="jemi-msg jemi-msg-bot">
-                        🤖 Jemi is thinking... 💭
+                        🤖 Jemi is analyzing your request... 💭
                     </div>
+                </div>
+
+                <!-- Image Selected Banner -->
+                <div t-if="state.pendingImageUrl" class="jemi-pending-img-banner">
+                    <span>📷 Image Attached:</span>
+                    <img t-att-src="state.pendingImageUrl" style="height: 32px; border-radius: 4px; border: 1px solid #714B67;"/>
+                    <button class="jemi-remove-img-btn" t-on-click="removePendingImage">✕</button>
                 </div>
 
                 <!-- Input Footer -->
                 <div class="jemi-chat-footer">
+                    <!-- Image Upload Button 📷 -->
+                    <label class="jemi-upload-btn" title="Upload Image / Screenshot to Jemi AI">
+                        📷
+                        <input type="file" accept="image/*" t-on-change="onImageSelected" style="display: none;"/>
+                    </label>
                     <input type="text"
                            class="jemi-input"
-                           placeholder="Ask Jemi anything or describe your app idea..."
+                           placeholder="Ask Jemi anything or analyze an image..."
                            t-model="state.inputMessage"
                            t-on-keydown="onKeyPress"/>
                     <button class="jemi-send-btn" t-on-click="sendMessage">
@@ -69,10 +85,12 @@ export class JemiFloatingBot extends Component {
             isOpen: true,
             isExpanded: false,
             inputMessage: "",
+            pendingImageBase64: null,
+            pendingImageUrl: null,
             messages: [
                 {
                     sender: "bot",
-                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything (e.g. Odoo pricing, weather, account details, Sarawak food, or custom app requirements)!",
+                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything, upload images 📷, or describe your custom Odoo app requirements!",
                     copied: false,
                     logInfo: "Initial System Message [Engine: Google Antigravity AI Engine]"
                 }
@@ -109,6 +127,22 @@ export class JemiFloatingBot extends Component {
 
     toggleExpand() {
         this.state.isExpanded = !this.state.isExpanded;
+    }
+
+    onImageSelected(ev) {
+        const file = ev.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            this.state.pendingImageUrl = e.target.result;
+            this.state.pendingImageBase64 = e.target.result.split(",")[1];
+        };
+        reader.readAsDataURL(file);
+    }
+
+    removePendingImage() {
+        this.state.pendingImageUrl = null;
+        this.state.pendingImageBase64 = null;
     }
 
     copyBothQuestionAndResponseWithLogs(msgIndex) {
@@ -160,17 +194,25 @@ export class JemiFloatingBot extends Component {
 
     async sendMessage() {
         const text = this.state.inputMessage.trim ? this.state.inputMessage.trim() : this.state.inputMessage;
-        if (!text || this.state.isLoading) return;
+        const imgUrl = this.state.pendingImageUrl;
+        const imgBase64 = this.state.pendingImageBase64;
 
-        this.state.messages.push({ sender: "user", text: text });
+        if (!text && !imgBase64) return;
+        if (this.state.isLoading) return;
+
+        const userMsgText = text || "📷 Sent an image for AI analysis";
+        this.state.messages.push({ sender: "user", text: userMsgText, imageUrl: imgUrl });
+        
         this.state.inputMessage = "";
+        this.state.pendingImageUrl = null;
+        this.state.pendingImageBase64 = null;
         this.state.isLoading = true;
 
         try {
             const res = await rpc("/web/dataset/call_kw/res.config.settings/action_chat_with_gemini", {
                 model: "res.config.settings",
                 method: "action_chat_with_gemini",
-                args: [text],
+                args: [userMsgText, imgBase64 || ""],
                 kwargs: {}
             });
 

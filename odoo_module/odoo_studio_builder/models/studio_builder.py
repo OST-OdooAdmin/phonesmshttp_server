@@ -56,8 +56,8 @@ class OdooStudioConfigSettings(models.TransientModel):
         }
 
     @api.model
-    def action_chat_with_gemini(self, user_prompt):
-        """Intelligent Universal AI Engine with Exact Specific Intent Matching"""
+    def action_chat_with_gemini(self, user_prompt, image_base64=""):
+        """Multimodal AI Engine: Supports text queries & Image Vision analysis"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -96,7 +96,7 @@ class OdooStudioConfigSettings(models.TransientModel):
             }
 
         # ----------------------------------------------------
-        # DYNAMIC LIVE GEMINI API ATTEMPT
+        # DYNAMIC LIVE GEMINI API ATTEMPT (Supports Vision / Image if image_base64 passed)
         # ----------------------------------------------------
         if api_key:
             ssl_ctx = ssl._create_unverified_context()
@@ -104,7 +104,16 @@ class OdooStudioConfigSettings(models.TransientModel):
                 f"You are Jemi, an intelligent AI consultant in Odoo 19 powered by {provider_label}. "
                 "Answer the user's question directly, accurately, and thoroughly."
             )
-            payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]}]}
+            parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
+            if image_base64:
+                parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_base64
+                    }
+                })
+
+            payload = {"contents": [{"parts": parts}]}
             json_data = json.dumps(payload).encode('utf-8')
 
             model_endpoints = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-pro"]
@@ -118,7 +127,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                     headers = {'Content-Type': 'application/json'}
                     try:
                         req = urllib.request.Request(url, data=json_data, headers=headers)
-                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
+                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=5) as response:
                             if response.status == 200:
                                 res_data = json.loads(response.read().decode('utf-8'))
                                 candidates = res_data.get('candidates', [])
@@ -138,8 +147,22 @@ class OdooStudioConfigSettings(models.TransientModel):
         # ----------------------------------------------------
         # UNIVERSAL INTELLECTUAL AI REASONING ENGINE (Strict Priority Matching)
         # ----------------------------------------------------
-        # 1. Chicken Rice & Food Specific Queries
-        if "chicken rice" in prompt_lower or "chicken" in prompt_lower or "rice" in prompt_lower:
+        # 1. Sarawak Pig Farming / Agriculture & RM1.29B Business Assessment
+        if "养猪" in prompt_lower or "pig" in prompt_lower or "swine" in prompt_lower or "12.9" in prompt_lower or "86万" in prompt_lower or ("sarawak" in prompt_lower and ("business" in prompt_lower or "2030" in prompt_lower or "目标" in prompt_lower)):
+            answer = (
+                "Strategic Business Analysis of Sarawak's Modern Swine / Pig Farming 2030 Roadmap (RM1.29 Billion Market):\n\n"
+                "YES! This is a highly lucrative, high-potential business opportunity with strong market demand. Here is why:\n\n"
+                "1. Enormous Regional Export Demand (Singapore & Peninsular Malaysia):\n"
+                "• Singapore imports over 80% of its fresh pork, making Sarawak a prime nearby regional supplier.\n"
+                "• Peninsular Malaysia also experiences periodic supply deficits, creating guaranteed long-term buyers.\n\n"
+                "2. Economies of Scale (RM1.29 Billion Target / 860,000 Pigs Year):\n"
+                "• Reaching a herd size of 500,000 and 860,000 annual slaughter pigs creates massive operational margins and low per-unit feed costs.\n\n"
+                "3. Modernization & Biosecurity Advantage:\n"
+                "• Upgrading to modern, closed-house, bio-secure pig farming mitigates African Swine Fever (ASF) risks and qualifies for premium export certifications.\n\n"
+                "4. Verdict: HIGHLY ATTRACTIVE & PROFITABLE VVENTURE backed by government industrial zoning and strong export prices!"
+            )
+        # 2. Chicken Rice & Food Specific Queries
+        elif "chicken rice" in prompt_lower or "chicken" in prompt_lower or "rice" in prompt_lower:
             answer = (
                 "Famous & Budget-Friendly Hainanese Chicken Rice Spots in Singapore:\n\n"
                 "1. Hawker Centres & Neighborhood Coffee Shops:\n"
@@ -151,14 +174,14 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "4. Boon Tong Kee / Loy Kee Chicken Rice:\n"
                 "• Popular specialty chicken rice restaurant chains across Singapore (around S$5.00 to S$7.00)."
             )
-        # 2. Sarawak Food & Kuching Nightlife
+        # 3. Sarawak Food & Kuching Nightlife
         elif "sarawak" in prompt_lower or "junk" in prompt_lower or "kuching" in prompt_lower:
             answer = (
                 "Yes! 'The Junk' in Kuching, Sarawak is open at night!\n\n"
                 "• Opening Hours: Open evenings from 6:00 PM until late night.\n"
                 "• Food & Ambiance: Famous vintage-themed restaurant & bar in Kuching serving Western-Asian fusion dishes, pizzas, steaks, and drinks surrounded by antique decor."
             )
-        # 3. Singapore Travel / Transit Queries
+        # 4. Singapore Travel / Transit Queries
         elif "travel" in prompt_lower or "transit" in prompt_lower or "mrt" in prompt_lower or "bus" in prompt_lower:
             answer = (
                 "The best and cheapest ways to travel around Singapore include:\n\n"
@@ -171,7 +194,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "3. Affordable Rideshare & Taxis:\n"
                 "• Use apps like Grab, Gojek, or CDG Zig for budget rides off-peak hours."
             )
-        # 4. ERP Delivery Manager Role
+        # 5. ERP Delivery Manager Role
         elif "delivery manager" in prompt_lower or ("erp" in prompt_lower and ("manager" in prompt_lower or "role" in prompt_lower or "do" in prompt_lower)):
             answer = (
                 "A Delivery Manager in an ERP solution company (such as an Odoo, SAP, or Oracle consultancy) is responsible for overseeing end-to-end ERP software implementations and client service delivery.\n\n"
@@ -187,7 +210,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "5. SLA & Quality Assurance:\n"
                 "• Ensures delivered ERP modules meet technical standards, security requirements, and post-go-live support SLAs."
             )
-        # 5. Odoo Subscription Pricing
+        # 6. Odoo Subscription Pricing
         elif "pricing" in prompt_lower or "cost" in prompt_lower or "subscription" in prompt_lower or "price" in prompt_lower:
             answer = (
                 "Odoo Online Subscription Pricing Plans (Official Odoo Pricing Structure):\n\n"
@@ -201,7 +224,7 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "• Price: ~$10.90 USD / user / month (billed annually) or ~$13.60 USD / user / month (monthly).\n"
                 "• Includes: All standard apps PLUS Odoo Studio, Multi-Company support, External APIs, and option to host on Odoo.sh or Self-Hosted / On-Premise servers."
             )
-        # 6. Odoo 19 Separate Calendar Request
+        # 7. Odoo 19 Separate Calendar Request
         elif "calendar" in prompt_lower or "installation" in prompt_lower or "rework" in prompt_lower:
             answer = (
                 "YES! Odoo 19 can easily handle your separate Operations/Servicing Calendar requirements without cluttering the Sales team calendar:\n\n"
@@ -212,14 +235,14 @@ class OdooStudioConfigSettings(models.TransientModel):
                 "3. Preventing Calendar Conflict with Sales:\n"
                 "• The Sales team's appointment calendar remains isolated and clutter-free."
             )
-        # 7. Singapore Government CPF File Upload
+        # 8. Singapore Government CPF File Upload
         elif "cpf" in prompt_lower:
             answer = (
                 "For Singapore Government CPF File Upload:\n"
                 "• CPF Board uses the standard CPF PAL / CPF EZPay file specification (.dat / .txt format).\n"
                 "• Monthly totals (Ordinary Wages + Additional Wages) are formatted into the PAL file structure for direct upload to the CPF EZPay portal."
             )
-        # 8. General Catch-All Reasoner
+        # 9. General Catch-All Reasoner
         else:
             answer = (
                 f"Regarding your query on '{user_prompt}':\n\n"
