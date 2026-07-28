@@ -1,13 +1,72 @@
 import json
+import time
+import os
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+DATA_FILE = "/app/antigravity_data.json"
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "settings": {
+            "ai_provider": "antigravity",
+            "provider_label": "SECTION 1 [PRIMARY DEFAULT]: Google Antigravity Universal Engine (DOCKER CONTAINER)",
+            "user_id": "1012374182157",
+            "account_id": "gen-lang-client-0177342458",
+            "gemini_api_key": "",
+            "masked_key": "Not Set",
+            "query_count": 55
+        },
+        "logs": [
+            {
+                "timestamp": "2026-07-28 07:16:29",
+                "query": "what the average earning of singapore in 2025",
+                "engine": "Google Antigravity Universal Docker Microservice",
+                "request_type": "GENERIC_CONSULTATION",
+                "status": "SUCCESS"
+            },
+            {
+                "timestamp": "2026-07-28 07:05:00",
+                "query": "is male and female human has bady and what is the factor that will make sure they have a male successory",
+                "engine": "Google Antigravity Universal Docker Microservice",
+                "request_type": "GENERIC_CONSULTATION",
+                "status": "SUCCESS"
+            }
+        ],
+        "history": []
+    }
+
+def save_data(data):
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving data: {e}")
+
 class AntigravityHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
+    def _send_json(self, payload, code=200):
+        self.send_response(code)
         self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "online", "engine": "Google Antigravity Universal AI Microservice"}).encode('utf-8'))
+        self.wfile.write(json.dumps(payload, ensure_ascii=False).encode('utf-8'))
+
+    def do_GET(self):
+        data = load_data()
+        if self.path == "/settings":
+            self._send_json(data["settings"])
+        elif self.path == "/logs":
+            self._send_json({"logs": data["logs"], "count": len(data["logs"])})
+        elif self.path == "/history":
+            self._send_json({"history": data["history"]})
+        else:
+            self._send_json({"status": "online", "service": "Google Antigravity AI Container", "settings": data["settings"]})
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -17,8 +76,23 @@ class AntigravityHandler(BaseHTTPRequestHandler):
         except Exception:
             req_json = {}
 
+        data = load_data()
+
+        # Endpoint: Update Settings
+        if self.path == "/settings":
+            new_settings = req_json.get("settings", {})
+            data["settings"].update(new_settings)
+            save_data(data)
+            self._send_json({"status": "updated", "settings": data["settings"]})
+            return
+
+        # Endpoint: Chat
         user_prompt = req_json.get('prompt', '').strip()
         prompt_lower = user_prompt.lower()
+
+        # Increment query counter
+        data["settings"]["query_count"] += 1
+        current_count = data["settings"]["query_count"]
 
         # Intent Classifier
         new_module_triggers = ["build me", "create custom app", "generate new module", "create app", "new module", "make app", "install app"]
@@ -30,7 +104,7 @@ class AntigravityHandler(BaseHTTPRequestHandler):
 
         request_type = "NEW_MODULE" if is_new_module else ("CUSTOMIZE_MODULE" if is_customize_module else "GENERIC_CONSULTATION")
 
-        # Factual Reasoning Engine
+        # Reasoning Engine
         if "earning" in prompt_lower or "salary" in prompt_lower or "income" in prompt_lower or "pay" in prompt_lower or "wage" in prompt_lower:
             answer = (
                 "Average & Median Earnings in Singapore (2025 / 2026 Ministry of Manpower Statistics):\n\n"
@@ -123,22 +197,45 @@ class AntigravityHandler(BaseHTTPRequestHandler):
                 f"• If you would like me to build a custom module or alter code for this requirement, type: 'Build me an app for {topic_clean}'!"
             )
 
-        response_payload = {
+        resp_formatted = f"🤖 Jemi (Google Antigravity Docker Container):\n\n{answer}"
+
+        # Record Communication Log & History
+        ts_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = {
+            "timestamp": ts_str,
+            "query": user_prompt,
+            "engine": "Google Antigravity Universal Docker Microservice",
+            "request_type": request_type,
+            "status": "SUCCESS",
+            "query_number": current_count
+        }
+        history_entry = {
+            "timestamp": ts_str,
+            "user_prompt": user_prompt,
+            "ai_response": resp_formatted
+        }
+
+        data["logs"].insert(0, log_entry)
+        data["history"].insert(0, history_entry)
+        save_data(data)
+
+        self._send_json({
             "status": "success",
             "engine": "Google Antigravity Universal Docker Microservice",
             "request_type": request_type,
             "is_odoo_task": is_odoo_task,
-            "response": f"🤖 Jemi (Google Antigravity Docker Microservice):\n\n{answer}"
-        }
-
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(response_payload).encode('utf-8'))
+            "query_count": current_count,
+            "response": resp_formatted,
+            "account": {
+                "user_id": data["settings"]["user_id"],
+                "account_id": data["settings"]["account_id"],
+                "provider": data["settings"]["ai_provider"]
+            }
+        })
 
 def run_server():
     server = HTTPServer(('0.0.0.0', 5005), AntigravityHandler)
-    print("Google Antigravity AI Engine Microservice running on port 5005...")
+    print("Google Antigravity AI Engine Microservice running on port 5005 with persistent logs & account storage...")
     server.serve_forever()
 
 if __name__ == '__main__':
