@@ -71,7 +71,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """DYNAMIC ROUTING ENGINE WITH INTENT IDENTIFICATION & SECTION 2 -> SECTION 1 -> SECTION 3 FAILOVER:
+        """DYNAMIC ROUTING ENGINE WITH INTENT IDENTIFICATION & BUS BROADCASTING:
         
         1. INTENT IDENTIFICATION (SECTION 1 PRIMARY DEFAULT):
            - Identifies whether prompt is:
@@ -79,10 +79,8 @@ class OdooStudioConfigSettings(models.TransientModel):
              B) [CUSTOMIZE ODOO MODULE REQUEST]
              C) [GENERIC CONSULTATION QUERY]
              
-        2. ODOO TASK EXECUTION ROUTING:
-           - Checks if Section 2 Paid AI (Custom API key) is available.
-           - If Section 2 Unavailable -> Falls back to Section 1 Primary Engine to execute code/model changes on Odoo Docker.
-           - Section 3 free engines used for short-term verification and backup failover.
+        2. REAL-TIME BUS BROADCASTING:
+           - Broadcasts response to bus.bus channel 'jemi_live_chat' so active floating bot drawers update live!
         """
         global ISOLATED_ENDPOINTS, API_WINDOW_TRACKER
         now_ts = time.time()
@@ -142,11 +140,23 @@ class OdooStudioConfigSettings(models.TransientModel):
                 f"• Technical Model: {app_rec.model_name}\n"
                 f"• Status: Compiled & Registered in Database."
             )
+            log_info = f"ODOO_TASK_EXECUTE [{request_type_label} | Model: {tech_name}.model | Query #{current_count}]"
+
+            # Post to Chatter & Bus Broadcast
             app_rec.message_post(body=resp_text)
+            try:
+                self.env['bus.bus']._sendone('jemi_live_chat', 'jemi_live_chat', {
+                    'user_prompt': user_prompt,
+                    'response': resp_text,
+                    'log_info': log_info
+                })
+            except Exception:
+                pass
+
             return {
                 'success': True,
                 'response': resp_text,
-                'log_info': f"ODOO_TASK_EXECUTE [{request_type_label} | Model: {tech_name}.model | Query #{current_count}]"
+                'log_info': log_info
             }
 
         # -------------------------------------------------------------------------
@@ -259,10 +269,22 @@ class OdooStudioConfigSettings(models.TransientModel):
             )
 
         resp_text = f"🤖 Jemi (SECTION 1 INTENT IDENTIFIER: {request_type_label}):\n\n{answer}"
+        log_info = f"GENERIC_QUERY_SUCCESS [{request_type_label} | Query #{current_count}]"
+
+        # Broadcast via bus.bus so open drawer widget updates live!
+        try:
+            self.env['bus.bus']._sendone('jemi_live_chat', 'jemi_live_chat', {
+                'user_prompt': user_prompt,
+                'response': resp_text,
+                'log_info': log_info
+            })
+        except Exception:
+            pass
+
         return {
             'success': True,
             'response': resp_text,
-            'log_info': f"GENERIC_QUERY_SUCCESS [{request_type_label} | Query #{current_count}]"
+            'log_info': log_info
         }
 
 class OdooStudioApp(models.Model):

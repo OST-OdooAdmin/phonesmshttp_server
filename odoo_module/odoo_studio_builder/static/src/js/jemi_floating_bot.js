@@ -3,6 +3,7 @@
 import { Component, useState, onMounted, onWillUnmount, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
+import { useService } from "@web/core/utils/hooks";
 
 export class JemiFloatingBot extends Component {
     static template = xml`
@@ -92,6 +93,7 @@ export class JemiFloatingBot extends Component {
     `;
 
     setup() {
+        this.busService = useService("bus_service");
         this.state = useState({
             isOpen: true,
             isExpanded: false,
@@ -117,6 +119,7 @@ export class JemiFloatingBot extends Component {
             this.verifyAccountCredentials();
             this.setupGlobalKeyboardShortcut();
             this.setupVoiceRecognition();
+            this.setupBusListener();
         });
 
         onWillUnmount(() => {
@@ -124,6 +127,31 @@ export class JemiFloatingBot extends Component {
                 window.removeEventListener("keydown", this.globalKeyHandler);
             }
         });
+    }
+
+    setupBusListener() {
+        if (this.busService) {
+            try {
+                this.busService.subscribe("jemi_live_chat", (payload) => {
+                    if (payload && payload.response) {
+                        if (payload.user_prompt) {
+                            this.state.messages.push({
+                                sender: "user",
+                                text: payload.user_prompt
+                            });
+                        }
+                        this.state.messages.push({
+                            sender: "bot",
+                            text: payload.response,
+                            copied: false,
+                            logInfo: payload.log_info || "Status 200 OK [Bus Notification]"
+                        });
+                    }
+                });
+            } catch (e) {
+                console.warn("[Jemi Bus Listener Warning]", e);
+            }
+        }
     }
 
     setupGlobalKeyboardShortcut() {
