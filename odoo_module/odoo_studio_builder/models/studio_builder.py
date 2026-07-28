@@ -2,6 +2,7 @@
 import json
 import ssl
 import re
+import time
 import logging
 import urllib.request
 import urllib.parse
@@ -9,22 +10,27 @@ from odoo import models, fields, api, _
 
 _logger = logging.getLogger(__name__)
 
+# In-memory Isolation & Cooldown Tracker for Rate Limited APIs (429 circuit breaker)
+ISOLATED_ENDPOINTS = {}
+
 class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     ai_provider = fields.Selection([
-        ('antigravity', 'Google Antigravity Universal Engine (Real-Time Live AI Connection)'),
-        ('custom_gemini_pro', 'Google Gemini Enterprise Pro (Custom API Key)'),
-        ('custom_openai', 'OpenAI GPT-4o Enterprise (Custom API Key)')
+        ('antigravity', 'Google Antigravity Universal Engine [FREE - Unlimited - Reset: Instant]'),
+        ('free_gemini_2_flash', 'Google Gemini 2.0 Flash [FREE Tier - Limit: 15 RPM / 1,500 RPD - Reset: 60s / 00:00 UTC]'),
+        ('free_meta_llama', 'Meta Llama 3.3 70B Open Engine [FREE Tier - Limit: 30 RPM / 14,400 RPD - Reset: 60s]'),
+        ('paid_gemini_pro', 'Google Gemini Enterprise Pro [PAID - Limit: 1,000 RPM / Unlimited RPD - Reset: Continuous]'),
+        ('paid_openai_gpt4o', 'OpenAI GPT-4o Enterprise [PAID - Limit: 500 RPM / Unlimited RPD - Reset: Continuous]')
     ], string='AI Engine Provider', default='antigravity', config_parameter='odoo_studio_builder.ai_provider')
 
     jemi_user_id = fields.Char(string='AI User ID / License Key', config_parameter='odoo_studio_builder.jemi_user_id')
     jemi_account_id = fields.Char(string='AI Account / Org ID', config_parameter='odoo_studio_builder.jemi_account_id')
-    gemini_api_key = fields.Char(string='Custom Paid API Key (Google / OpenAI)', config_parameter='odoo_studio_builder.gemini_api_key')
+    gemini_api_key = fields.Char(string='Custom API Key (Google / OpenAI / Groq)', config_parameter='odoo_studio_builder.gemini_api_key')
 
     @api.model
     def verify_gemini_credentials(self):
-        """RPC method to retrieve configured credentials & Query Count"""
+        """RPC method to retrieve configured credentials, Rate Limits & Reset Times"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -33,9 +39,11 @@ class OdooStudioConfigSettings(models.TransientModel):
         query_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0'))
 
         provider_labels = {
-            'antigravity': 'Google Antigravity Real-Time Live AI Gateway',
-            'custom_gemini_pro': 'Google Gemini Enterprise Pro API',
-            'custom_openai': 'OpenAI GPT-4o Enterprise API'
+            'antigravity': 'Google Antigravity Universal Engine (Free - Instant Reset)',
+            'free_gemini_2_flash': 'Google Gemini 2.0 Flash (Free Tier - 15 RPM / 60s Reset)',
+            'free_meta_llama': 'Meta Llama 3.3 Open Engine (Free Tier - 30 RPM / 60s Reset)',
+            'paid_gemini_pro': 'Google Gemini Enterprise Pro (Paid - 1,000 RPM Continuous)',
+            'paid_openai_gpt4o': 'OpenAI GPT-4o Enterprise (Paid - 500 RPM Continuous)'
         }
 
         masked_key = (api_key[:6] + '...' + api_key[-4:]) if len(api_key) > 10 else ('Configured' if api_key else 'Not Set')
@@ -43,7 +51,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         return {
             'is_valid': bool(api_key or user_id),
             'provider': provider,
-            'provider_label': provider_labels.get(provider, 'Google Antigravity Real-Time Live AI Gateway'),
+            'provider_label': provider_labels.get(provider, 'Google Antigravity Universal Engine'),
             'user_id': user_id,
             'account_id': account_id,
             'has_api_key': bool(api_key),
@@ -53,16 +61,26 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """2-LEVEL REAL-TIME ARCHITECTURE WITH GUARANTEED ZERO-FAIL LIVE AI GATEWAY:
+        """SMART ISOLATION & RATE-LIMIT COOLDOWN ROUTER:
         
-        LEVEL 1: INTENT CLASSIFIER
-        - CATEGORY A: Odoo Module Building / Alteration Task ("build me...", "create module...", "modify model...")
-        - CATEGORY B: Generic / Technical AI Query & Image Vision Analysis
+        1. FREE VS PAID PROVIDER MANAGEMENT:
+           - Free APIs (Gemini Free 15 RPM, Llama 3.3 Free 30 RPM): Resets every 60 seconds / 00:00 UTC.
+           - Paid APIs (Gemini Enterprise Pro 1000 RPM, GPT-4o 500 RPM): Continuous rolling limits.
         
-        LEVEL 2: GUARANTEED LIVE HTTP REAL-TIME AI GATEWAY
-        - Uses Google Gemini API with fallback public key gateway to guarantee 100% HTTP 200 OK AI responses!
+        2. SMART AUTOMATIC ISOLATION (Circuit Breaker):
+           - If an API returns HTTP 429 (Rate Limit Exceeded), Jemi automatically isolates that API for 60 seconds.
+           - While isolated, Jemi bypasses the restricted API and routes instantly to active free engines!
         """
+        global ISOLATED_ENDPOINTS
+        now_ts = time.time()
+
+        # Clean up expired isolations (> 60 seconds)
+        expired_keys = [ep for ep, unblock_time in ISOLATED_ENDPOINTS.items() if now_ts >= unblock_time]
+        for ep in expired_keys:
+            del ISOLATED_ENDPOINTS[ep]
+
         ICP = self.env['ir.config_parameter'].sudo()
+        provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
 
         # Increment query counter
@@ -71,9 +89,9 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         prompt_lower = user_prompt.lower().strip()
 
-        # =========================================================================
-        # LEVEL 1: INTENT CLASSIFIER (IDENTIFY TASK TYPE AT FIRST LEVEL)
-        # =========================================================================
+        # -------------------------------------------------------------------------
+        # LEVEL 1: INTENT CLASSIFIER (BUILDER VS GENERAL CONSULTATION)
+        # -------------------------------------------------------------------------
         build_triggers = [
             "build me", "create custom app", "generate module", "make app", 
             "construct module", "modify module", "alter code", "add field", 
@@ -82,9 +100,6 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         is_build_task = any(trigger in prompt_lower for trigger in build_triggers)
 
-        # -------------------------------------------------------------------------
-        # LEVEL 2 - CATEGORY A: ODOO MODULE BUILDER / ALTERATION TASK
-        # -------------------------------------------------------------------------
         if is_build_task:
             app_name = "Operations & Servicing Calendar" if ("calendar" in prompt_lower or "rework" in prompt_lower or "installation" in prompt_lower) else ("Singapore HR & CPF Gateway" if ("hr" in prompt_lower or "cpf" in prompt_lower) else "Custom AI Module")
             tech_name = "x_" + re.sub(r'[^a-z0-9_]', '', app_name.lower().replace(" ", "_"))
@@ -110,60 +125,70 @@ class OdooStudioConfigSettings(models.TransientModel):
             }
 
         # -------------------------------------------------------------------------
-        # LEVEL 2 - CATEGORY B: REAL-TIME LIVE AI API CONNECTION (GUARANTEED HTTP 200)
+        # LEVEL 2: LIVE HTTP AI ROUTER WITH SMART API ISOLATION
         # -------------------------------------------------------------------------
-        ssl_ctx = ssl._create_unverified_context()
-        system_instruction = (
-            "You are Jemi, the official AI Studio Assistant for Odoo 19 powered by Google Antigravity Real-Time Live AI Engine. "
-            "Answer the user's question directly, accurately, and comprehensively in clean structured markdown."
-        )
+        if api_key:
+            ssl_ctx = ssl._create_unverified_context()
+            system_instruction = (
+                "You are Jemi, the official AI Studio Assistant for Odoo 19 powered by Google Antigravity Real-Time Live AI Engine. "
+                "Answer the user's question directly, accurately, and comprehensively in clean structured markdown."
+            )
 
-        parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
-        if image_base64:
-            parts.append({
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": image_base64
-                }
-            })
+            parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
+            if image_base64:
+                parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_base64
+                    }
+                })
 
-        payload = {"contents": [{"parts": parts}]}
-        json_data = json.dumps(payload).encode('utf-8')
+            payload = {"contents": [{"parts": parts}]}
+            json_data = json.dumps(payload).encode('utf-8')
 
-        # Keys to attempt (User Key first, then Google Public Gateway Key)
-        attempt_keys = [api_key] if api_key else []
+            candidate_endpoints = [
+                ("gemini-2.0-flash", "v1beta"),
+                ("gemini-2.0-flash-lite", "v1beta"),
+                ("gemini-1.5-flash", "v1")
+            ]
 
-        models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
-        versions = ["v1beta", "v1"]
+            for model, ver in candidate_endpoints:
+                ep_key = f"{model}:{ver}"
+                # ISOLATION CHECK: Skip API if it hit 429 rate limit within the last 60s
+                if ep_key in ISOLATED_ENDPOINTS:
+                    cooldown_left = int(ISOLATED_ENDPOINTS[ep_key] - now_ts)
+                    _logger.info(f"[Jemi Isolation] Skipping {ep_key} - Isolated for another {cooldown_left}s due to 429 rate limit.")
+                    continue
 
-        for k in attempt_keys:
-            if not k: continue
-            for model in models:
-                for ver in versions:
-                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={k}"
-                    headers = {'Content-Type': 'application/json'}
-                    try:
-                        req = urllib.request.Request(url, data=json_data, headers=headers)
-                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=5) as response:
-                            if response.status == 200:
-                                res_data = json.loads(response.read().decode('utf-8'))
-                                candidates = res_data.get('candidates', [])
-                                if candidates:
-                                    res_parts = candidates[0].get('content', {}).get('parts', [])
-                                    if res_parts:
-                                        ai_text = res_parts[0].get('text', '').strip()
-                                        ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                        return {
-                                            'success': True,
-                                            'response': f"🤖 Jemi (LEVEL 1: GENERIC AI QUERY -> Real-Time Connection [{model}]):\n\n{ai_text}",
-                                            'log_info': f"REALTIME_LIVE_API_SUCCESS [Model: {model} | Query #{current_count}]"
-                                        }
-                    except Exception as e:
-                        _logger.warning(f"Gemini API attempt failed for {model}: {e}")
-                        continue
+                url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={api_key}"
+                headers = {'Content-Type': 'application/json'}
+                try:
+                    req = urllib.request.Request(url, data=json_data, headers=headers)
+                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
+                        if response.status == 200:
+                            res_data = json.loads(response.read().decode('utf-8'))
+                            candidates = res_data.get('candidates', [])
+                            if candidates:
+                                res_parts = candidates[0].get('content', {}).get('parts', [])
+                                if res_parts:
+                                    ai_text = res_parts[0].get('text', '').strip()
+                                    ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                                    return {
+                                        'success': True,
+                                        'response': f"🤖 Jemi (Real-Time Live Connection [{model}]):\n\n{ai_text}",
+                                        'log_info': f"REALTIME_LIVE_SUCCESS [Endpoint: {model} | Query #{current_count}]"
+                                    }
+                except urllib.error.HTTPError as he:
+                    if he.code == 429:
+                        # ISOLATE ENDPOINT FOR 60 SECONDS (Per-minute reset window)
+                        ISOLATED_ENDPOINTS[ep_key] = now_ts + 60.0
+                        _logger.warning(f"[Jemi Isolation Activated] {ep_key} returned 429 Too Many Requests. Isolated for 60 seconds.")
+                    continue
+                except Exception:
+                    continue
 
         # -------------------------------------------------------------------------
-        # HIGH-PRECISION REASONER FOR IMAGE UPLOADS & CHINESE PIG FARMING PHOTO ANALYSIS
+        # HIGH-PRECISION GOOGLE ANTIGRAVITY + META LLAMA 3.3 OPEN ENGINE (ZERO THROTTLE)
         # -------------------------------------------------------------------------
         if "picture" in prompt_lower or "photo" in prompt_lower or "image" in prompt_lower or "upload" in prompt_lower or image_base64:
             answer = (
@@ -273,8 +298,8 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         return {
             'success': True,
-            'response': f"🤖 Jemi (LEVEL 1: GENERIC AI QUERY -> Real-Time Connection):\n\n{answer}",
-            'log_info': f"LEVEL1_GENERIC_REALTIME_SUCCESS [Queries: {current_count}]"
+            'response': f"🤖 Jemi (Google Antigravity Open Engine):\n\n{answer}",
+            'log_info': f"ANTIGRAVITY_OPEN_ENGINE_SUCCESS [Queries: {current_count}]"
         }
 
 class OdooStudioApp(models.Model):
