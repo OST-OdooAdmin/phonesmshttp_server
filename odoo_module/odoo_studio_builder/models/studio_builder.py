@@ -52,7 +52,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Dynamic live AI answer engine returning rich, accurate responses for all user questions"""
+        """Pure dynamic AI engine call without any hardcoded keyword rules"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='community_free')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -61,12 +61,18 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         provider_label = "Google Gemini Free Community" if provider == 'community_free' else ("Google Antigravity AI Engine" if provider == 'antigravity' else "Google Gemini 1.5 Pro")
 
+        if not api_key:
+            return {
+                'success': False,
+                'response': "⚠️ API Key Missing: Please enter your Google Gemini API Key in Settings ➔ AI Studio Configuration and click Save!"
+            }
+
         ssl_ctx = ssl._create_unverified_context()
 
         system_instruction = (
             f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
             f"Project ID: {account_id}, User ID: {user_id}. "
-            "Answer the user's question directly, accurately, and naturally. Never output generic template sentences."
+            "Answer the user's question directly, accurately, and naturally in clean markdown."
         )
 
         payload = {
@@ -81,65 +87,45 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         json_data = json.dumps(payload).encode('utf-8')
 
-        # 1. Attempt live Google Gemini REST API endpoints
-        if api_key:
-            model_endpoints = [
-                "gemini-1.5-flash-8b",
-                "gemini-2.0-flash-exp",
-                "gemini-1.0-pro",
-                "gemini-1.5-flash",
-                "gemini-2.0-flash"
+        model_endpoints = [
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash-8b",
+            "gemini-1.0-pro"
+        ]
+
+        errors = []
+
+        for model in model_endpoints:
+            urls = [
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={api_key}"
             ]
-            for model in model_endpoints:
-                urls = [
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-                    f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={api_key}"
-                ]
-                for url in urls:
-                    headers = {'Content-Type': 'application/json'}
-                    try:
-                        req = urllib.request.Request(url, data=json_data, headers=headers)
-                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=8) as response:
-                            res_data = json.loads(response.read().decode('utf-8'))
-                            candidates = res_data.get('candidates', [])
-                            if candidates:
-                                parts = candidates[0].get('content', {}).get('parts', [])
-                                if parts:
-                                    ai_text = parts[0].get('text', '').strip()
-                                    ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                    return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
-                    except Exception:
-                        continue
+            for url in urls:
+                headers = {'Content-Type': 'application/json'}
+                try:
+                    req = urllib.request.Request(url, data=json_data, headers=headers)
+                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=10) as response:
+                        res_data = json.loads(response.read().decode('utf-8'))
+                        candidates = res_data.get('candidates', [])
+                        if candidates:
+                            parts = candidates[0].get('content', {}).get('parts', [])
+                            if parts:
+                                ai_text = parts[0].get('text', '').strip()
+                                ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
+                except urllib.error.HTTPError as he:
+                    err_body = he.read().decode('utf-8') if he.fp else str(he)
+                    errors.append(f"HTTP {he.code}: {err_body[:150]}")
+                except Exception as e:
+                    errors.append(f"Error: {str(e)[:150]}")
 
-        # 2. Comprehensive Dynamic Response Engine for queries
-        prompt_lower = user_prompt.lower().strip()
-
-        if "au mun king" in prompt_lower or "linaz" in prompt_lower or "mc2" in prompt_lower:
-            answer = (
-                "Au Mun King is a dedicated professional associated with Linaz / MC2 Center, recognized for high diligence, hard work, and technical contribution.\n\n"
-                "As an AI assistant, I respect personal privacy and do not display exact private ages or personal identifiers unless publicly published."
-            )
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        if any(w in prompt_lower for w in ["singaporean", "singapore", "weekend", "location", "go", "fav", "favorite", "place"]):
-            answer = (
-                "Popular favorite weekend locations for Singaporeans include:\n\n"
-                "• Johor Bahru (JB, Malaysia): Extremely popular for weekend day trips, café hopping, food, and shopping via the Causeway.\n"
-                "• Sentosa Island & Universal Studios: For beach getaways, staycations, and theme parks.\n"
-                "• East Coast Park: Great for cycling, rollerblading, and seafood by the coast.\n"
-                "• Gardens by the Bay & Marina Bay Sands: For evening walks, light shows, and dining.\n"
-                "• Jewel Changi Airport: Popular for family dining, indoor waterfall, and retail therapy.\n"
-                "• Pulau Ubin & MacRitchie Reservoir: For nature hikes and outdoor adventure."
-            )
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        if "time" in prompt_lower and "singapore" in prompt_lower:
-            answer = "Singapore operates on Singapore Standard Time (SGT), which is UTC+8."
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        # Dynamic fallback for all other general queries
-        answer = f"I received your question: '{user_prompt}'!\n\nAs your AI Studio Assistant, I am connected to your Google AI Project '{account_id}' (User ID: {user_id}). Tell me what custom Odoo module, fields, or automations you would like to build!"
-        return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+        # Return Google Gemini API response status
+        err_msg = errors[0] if errors else "Network timeout"
+        return {
+            'success': False,
+            'response': f"🤖 Jemi ({provider_label}):\n\n⚠️ Google API Status: {err_msg}"
+        }
 
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'
