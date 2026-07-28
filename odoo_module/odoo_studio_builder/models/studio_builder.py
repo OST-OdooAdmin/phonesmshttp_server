@@ -13,6 +13,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     ai_provider = fields.Selection([
         ('gemini_flash', 'Google Gemini 1.5 Flash (Recommended Free Model)'),
+        ('community_free', 'Google Gemini Free Community Tier'),
         ('gemini_pro', 'Google Gemini 1.5 Pro (Google One AI Pro)'),
         ('gemini_2_flash', 'Google Gemini 2.0 Flash (Experimental)'),
         ('antigravity', 'Google Antigravity AI Engine'),
@@ -34,6 +35,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         provider_labels = {
             'gemini_flash': 'Google Gemini 1.5 Flash',
+            'community_free': 'Google Gemini Free Community Tier',
             'gemini_pro': 'Google Gemini 1.5 Pro',
             'gemini_2_flash': 'Google Gemini 2.0 Flash',
             'antigravity': 'Google Antigravity AI Engine',
@@ -63,6 +65,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         provider_labels = {
             'gemini_flash': 'Google Gemini 1.5 Flash',
+            'community_free': 'Google Gemini Free Community Tier',
             'gemini_pro': 'Google Gemini 1.5 Pro',
             'gemini_2_flash': 'Google Gemini 2.0 Flash',
             'antigravity': 'Google Antigravity AI Engine',
@@ -101,7 +104,7 @@ class OdooStudioConfigSettings(models.TransientModel):
             target_models = ["gemini-1.5-pro-latest", "gemini-1.5-pro", "gemini-pro"]
         elif provider == 'gemini_2_flash':
             target_models = ["gemini-2.0-flash-exp", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
-        else: # gemini_flash or default
+        else: # gemini_flash, community_free, or default
             target_models = ["gemini-1.5-flash-latest", "gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-pro"]
 
         errors = []
