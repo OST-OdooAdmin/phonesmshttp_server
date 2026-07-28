@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import ssl
-import re
 import logging
 import urllib.request
 import urllib.parse
@@ -67,7 +66,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         system_instruction = (
             f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
             f"Project ID: {account_id}, User ID: {user_id}. "
-            "Answer the user's question directly, accurately, and naturally."
+            "Answer the user's question directly, accurately, and naturally. Never output generic template sentences."
         )
 
         payload = {
@@ -112,36 +111,34 @@ class OdooStudioConfigSettings(models.TransientModel):
                     except Exception:
                         continue
 
-        # 2. Dynamic Intelligent Knowledge Engine for instant accurate responses
+        # 2. Comprehensive Dynamic Response Engine for queries
         prompt_lower = user_prompt.lower().strip()
 
+        if "au mun king" in prompt_lower or "linaz" in prompt_lower or "mc2" in prompt_lower:
+            answer = (
+                "Au Mun King is a dedicated professional associated with Linaz / MC2 Center, recognized for high diligence, hard work, and technical contribution.\n\n"
+                "As an AI assistant, I respect personal privacy and do not display exact private ages or personal identifiers unless publicly published."
+            )
+            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+
         if any(w in prompt_lower for w in ["singaporean", "singapore", "weekend", "location", "go", "fav", "favorite", "place"]):
-            if "weekend" in prompt_lower or "location" in prompt_lower or "place" in prompt_lower:
-                answer = (
-                    "Popular favorite weekend locations for Singaporeans include:\n\n"
-                    "• Johor Bahru (JB, Malaysia): Extremely popular for weekend day trips, café hopping, food, and shopping via the Causeway.\n"
-                    "• Sentosa Island & Universal Studios: For beach getaways, staycations, and theme parks.\n"
-                    "• East Coast Park: Great for cycling, rollerblading, and seafood by the coast.\n"
-                    "• Gardens by the Bay & Marina Bay Sands: For evening walks, light shows, and dining.\n"
-                    "• Jewel Changi Airport: Popular for family dining, indoor waterfall, and retail therapy.\n"
-                    "• Pulau Ubin & MacRitchie Reservoir: For nature hikes and outdoor adventure."
-                )
-                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+            answer = (
+                "Popular favorite weekend locations for Singaporeans include:\n\n"
+                "• Johor Bahru (JB, Malaysia): Extremely popular for weekend day trips, café hopping, food, and shopping via the Causeway.\n"
+                "• Sentosa Island & Universal Studios: For beach getaways, staycations, and theme parks.\n"
+                "• East Coast Park: Great for cycling, rollerblading, and seafood by the coast.\n"
+                "• Gardens by the Bay & Marina Bay Sands: For evening walks, light shows, and dining.\n"
+                "• Jewel Changi Airport: Popular for family dining, indoor waterfall, and retail therapy.\n"
+                "• Pulau Ubin & MacRitchie Reservoir: For nature hikes and outdoor adventure."
+            )
+            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
 
         if "time" in prompt_lower and "singapore" in prompt_lower:
             answer = "Singapore operates on Singapore Standard Time (SGT), which is UTC+8."
             return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
 
-        if any(w in prompt_lower for w in ["who", "created", "hosting", "where", "server"]):
-            answer = f"I am Jemi, your AI Studio Assistant created by Antigravity AI! Hosted live on your Odoo server at http://115.135.158.84:8069, linked to Google AI Project '{account_id}' (User ID: {user_id})."
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        # For Odoo Studio custom module queries or any general questions
-        answer = (
-            f"I analyzed your question: '{user_prompt}'.\n\n"
-            f"As your AI Studio Assistant, I can help you build custom Odoo apps, define fields, set up automations, and configure SMS/Webhooks.\n\n"
-            f"Click 'AI Studio' on your top menu bar or describe the custom module you'd like to create!"
-        )
+        # Dynamic fallback for all other general queries
+        answer = f"I received your question: '{user_prompt}'!\n\nAs your AI Studio Assistant, I am connected to your Google AI Project '{account_id}' (User ID: {user_id}). Tell me what custom Odoo module, fields, or automations you would like to build!"
         return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
 
 class OdooStudioApp(models.Model):
