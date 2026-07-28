@@ -7,16 +7,15 @@ ctx = ssl._create_unverified_context()
 key = sys.argv[1] if len(sys.argv) > 1 else ""
 
 models = [
-    "gemini-2.0-flash",
     "gemini-2.0-flash-exp",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash-8b",
-    "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-pro"
+    "gemini-pro",
+    "gemini-2.0-flash"
 ]
 
-prompt = 'can odoo 19 do these "Summary Points: 1) Schedule Data Tracking: They need to log and track scheduled dates for Installation and Defect Rework. 2) Current Calendar Usage: The existing calendar is currently dedicated to the Sales team for site visits and appointments. 3) Separate Calendar Request: If a separate calendar can be set up in Odoo specifically for operations/servicing so it doesn\'t clutter or conflict with the sales calendar."'
-
+prompt = "can odoo 19 do separate calendars?"
 payload = {"contents": [{"parts": [{"text": prompt}]}]}
 headers = {"Content-Type": "application/json"}
 
