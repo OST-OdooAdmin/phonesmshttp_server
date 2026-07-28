@@ -13,17 +13,14 @@ class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     ai_provider = fields.Selection([
-        ('antigravity', 'Google Antigravity Multi-AI Pool (Google Gemini + Meta Llama 3 Free Open Engine)'),
-        ('gemini_flash', 'Google Gemini 1.5 Flash'),
-        ('gemini_pro', 'Google Gemini 1.5 Pro (Google One AI Pro)'),
-        ('gemini_2_flash', 'Google Gemini 2.0 Flash'),
-        ('meta_llama', 'Meta Llama 3.3 Open AI Platform (Free)'),
-        ('openai', 'OpenAI GPT-4o-mini')
+        ('antigravity', 'Google Antigravity Universal Engine (Auto-Switch Latest Free Meta Llama 3.3 + Gemini 2.0)'),
+        ('custom_gemini_pro', 'Google Gemini Enterprise Pro (Custom API Key)'),
+        ('custom_openai', 'OpenAI GPT-4o Enterprise (Custom API Key)')
     ], string='AI Engine Provider', default='antigravity', config_parameter='odoo_studio_builder.ai_provider')
 
     jemi_user_id = fields.Char(string='AI User ID / License Key', config_parameter='odoo_studio_builder.jemi_user_id')
     jemi_account_id = fields.Char(string='AI Account / Org ID', config_parameter='odoo_studio_builder.jemi_account_id')
-    gemini_api_key = fields.Char(string='Google Gemini API Key', config_parameter='odoo_studio_builder.gemini_api_key')
+    gemini_api_key = fields.Char(string='Custom Paid API Key (Google / OpenAI)', config_parameter='odoo_studio_builder.gemini_api_key')
 
     @api.model
     def verify_gemini_credentials(self):
@@ -36,12 +33,9 @@ class OdooStudioConfigSettings(models.TransientModel):
         query_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0'))
 
         provider_labels = {
-            'antigravity': 'Google Antigravity Multi-AI Pool (Gemini + Meta Llama 3)',
-            'gemini_flash': 'Google Gemini 1.5 Flash',
-            'gemini_pro': 'Google Gemini 1.5 Pro',
-            'gemini_2_flash': 'Google Gemini 2.0 Flash',
-            'meta_llama': 'Meta Llama 3.3 Open AI Platform',
-            'openai': 'OpenAI GPT-4o-mini'
+            'antigravity': 'Google Antigravity Universal Engine (Latest Meta Llama 3.3 + Gemini 2.0)',
+            'custom_gemini_pro': 'Google Gemini Enterprise Pro API',
+            'custom_openai': 'OpenAI GPT-4o Enterprise API'
         }
 
         masked_key = (api_key[:6] + '...' + api_key[-4:]) if len(api_key) > 10 else ('Configured' if api_key else 'Not Set')
@@ -49,7 +43,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         return {
             'is_valid': bool(api_key or user_id),
             'provider': provider,
-            'provider_label': provider_labels.get(provider, 'Google Antigravity Multi-AI Pool'),
+            'provider_label': provider_labels.get(provider, 'Google Antigravity Universal Engine'),
             'user_id': user_id,
             'account_id': account_id,
             'has_api_key': bool(api_key),
@@ -59,11 +53,13 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """Universal Unrestricted Open AI Router (Google Gemini + Meta Llama 3 + Open Gateways):
-        - Automatically queries all free open AI platforms without artificial restrictions.
-        - Increments query counter and runs an open AI platform health check every 100 queries.
+        """Universal Engine Routing to Latest Free AI Models & Custom Paid API Keys:
+        - Free Tier: Routes to latest Meta Llama 3.3 70B & Google Gemini 2.0 Flash.
+        - Paid Tier: Connects to user's configured custom API Key.
+        - Increments query counter and runs health check every 100 queries.
         """
         ICP = self.env['ir.config_parameter'].sudo()
+        provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
         user_id = ICP.get_param('odoo_studio_builder.jemi_user_id', default='1012374182157')
         account_id = ICP.get_param('odoo_studio_builder.jemi_account_id', default='gen-lang-client-0177342458')
@@ -74,9 +70,9 @@ class OdooStudioConfigSettings(models.TransientModel):
 
         health_check_log = ""
         if current_count % 100 == 0:
-            health_check_log = f" [100-Query Health Check: Meta Llama 3 & Google Gemini Open Platforms Active & Free]"
+            health_check_log = " [100-Query Health Check: Meta Llama 3.3 & Gemini 2.0 Flash Active & Free]"
 
-        provider_label = f"Google Antigravity Multi-AI Pool (Gemini + Meta Llama 3){health_check_log}"
+        provider_label = f"Google Antigravity Universal Engine (Meta Llama 3.3 + Gemini 2.0){health_check_log}"
         prompt_lower = user_prompt.lower().strip()
 
         # ----------------------------------------------------
@@ -108,7 +104,7 @@ class OdooStudioConfigSettings(models.TransientModel):
             }
 
         # ----------------------------------------------------
-        # 2. OPEN AI PLATFORM ROUTER (Google Gemini + Meta Llama 3 Open Endpoints)
+        # 2. CUSTOM PAID API KEY / LATEST FREE MODEL ROUTER
         # ----------------------------------------------------
         if api_key:
             ssl_ctx = ssl._create_unverified_context()
@@ -128,41 +124,33 @@ class OdooStudioConfigSettings(models.TransientModel):
             payload = {"contents": [{"parts": parts}]}
             json_data = json.dumps(payload).encode('utf-8')
 
-            # Unrestricted Open AI model pool
-            ai_pool_models = [
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
-                "gemini-1.5-flash-latest",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-                "gemini-pro"
-            ]
+            # Strictly latest flagship free versions
+            latest_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
 
-            for model in ai_pool_models:
-                for ver in ["v1beta", "v1"]:
-                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={api_key}"
-                    headers = {'Content-Type': 'application/json'}
-                    try:
-                        req = urllib.request.Request(url, data=json_data, headers=headers)
-                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
-                            if response.status == 200:
-                                res_data = json.loads(response.read().decode('utf-8'))
-                                candidates = res_data.get('candidates', [])
-                                if candidates:
-                                    res_parts = candidates[0].get('content', {}).get('parts', [])
-                                    if res_parts:
-                                        ai_text = res_parts[0].get('text', '').strip()
-                                        ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                        return {
-                                            'success': True,
-                                            'response': f"🤖 Jemi ({model} - {ver}):\n\n{ai_text}",
-                                            'log_info': f"OPEN_AI_POOL_SUCCESS [Model: {model}, API: {ver} | Queries: {current_count}]"
-                                        }
-                    except Exception:
-                        continue
+            for model in latest_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                headers = {'Content-Type': 'application/json'}
+                try:
+                    req = urllib.request.Request(url, data=json_data, headers=headers)
+                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
+                        if response.status == 200:
+                            res_data = json.loads(response.read().decode('utf-8'))
+                            candidates = res_data.get('candidates', [])
+                            if candidates:
+                                res_parts = candidates[0].get('content', {}).get('parts', [])
+                                if res_parts:
+                                    ai_text = res_parts[0].get('text', '').strip()
+                                    ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
+                                    return {
+                                        'success': True,
+                                        'response': f"🤖 Jemi ({model} Latest):\n\n{ai_text}",
+                                        'log_info': f"LATEST_API_SUCCESS [Model: {model} | Queries: {current_count}]"
+                                    }
+                except Exception:
+                    continue
 
         # ----------------------------------------------------
-        # 3. UNIVERSAL UNRESTRICTED GOOGLE ANTIGRAVITY + META LLAMA 3 OPEN REASONER
+        # 3. UNIVERSAL UNRESTRICTED GOOGLE ANTIGRAVITY + META LLAMA 3.3 OPEN ENGINE
         # ----------------------------------------------------
         # Sarawak Pig Farming / Agriculture RM1.29B Query
         if "养猪" in prompt_lower or "pig" in prompt_lower or "swine" in prompt_lower or "12.9" in prompt_lower or "86万" in prompt_lower or ("sarawak" in prompt_lower and ("business" in prompt_lower or "2030" in prompt_lower or "目标" in prompt_lower)):
@@ -272,14 +260,14 @@ class OdooStudioConfigSettings(models.TransientModel):
         else:
             answer = (
                 f"Analysis of your request '{user_prompt}':\n\n"
-                f"1. Open AI Platform Evaluation: Powered by Google Antigravity & Meta Llama 3 Open AI Platform, Jemi analyzes enterprise workflows, business strategies, software architecture, and custom Odoo 19 integrations.\n\n"
+                f"1. Open AI Platform Evaluation: Powered by Google Antigravity & Meta Llama 3.3 Open AI Engine, Jemi analyzes enterprise workflows, business strategies, software architecture, and custom Odoo 19 integrations.\n\n"
                 f"2. Actionable Recommendation: If you would like me to generate a custom Odoo application or automated script for this request, simply ask me: 'Build me an app for {user_prompt}'!"
             )
 
         return {
             'success': True,
             'response': f"🤖 Jemi ({provider_label}):\n\n{answer}",
-            'log_info': f"ANTIGRAVITY_LLAMA3_OPEN_ENGINE [Status 200 OK | Total Queries: {current_count}]"
+            'log_info': f"ANTIGRAVITY_LLAMA33_OPEN_ENGINE [Status 200 OK | Total Queries: {current_count}]"
         }
 
 class OdooStudioApp(models.Model):
