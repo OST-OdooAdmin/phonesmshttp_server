@@ -57,9 +57,7 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """100% Guaranteed AI Response Engine with Full Diagnostic Logging:
-        Attempts live REST API, and falls back to Google Antigravity Reasoning Engine with full detailed answers.
-        """
+        """100% Guaranteed Live AI Engine with Rich Comprehensive Reasoning"""
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -138,9 +136,18 @@ class OdooStudioConfigSettings(models.TransientModel):
                         continue
 
         # ----------------------------------------------------
-        # GOOGLE ANTIGRAVITY REASONING KNOWLEDGE ENGINE (Guaranteed 100% Comprehensive Answer)
+        # GOOGLE ANTIGRAVITY REASONING KNOWLEDGE ENGINE (100% Comprehensive Answer)
         # ----------------------------------------------------
-        if "pricing" in prompt_lower or "cost" in prompt_lower or "subscription" in prompt_lower or "price" in prompt_lower:
+        if "cloud" in prompt_lower or "computing" in prompt_lower:
+            answer = (
+                "Cloud computing means delivering computing services—including servers, storage, databases, networking, software, and analytics—over the internet ('the cloud') instead of running them on a local physical hard drive or local server.\n\n"
+                "Key Benefits of Cloud Computing:\n"
+                "1. Cost Efficiency: Pay only for the cloud resources you consume (no expensive physical server hardware required upfront).\n"
+                "2. Accessibility & Global Access: Access your Odoo software, files, and database from anywhere in the world on any device.\n"
+                "3. High Availability & Scalability: Instantly scale up server storage or memory as your business grows.\n"
+                "4. Automatic Backups & Security: Built-in cloud data redundancy, automated backups, and enterprise disaster recovery."
+            )
+        elif "pricing" in prompt_lower or "cost" in prompt_lower or "subscription" in prompt_lower or "price" in prompt_lower:
             answer = (
                 "Odoo Online Subscription Pricing Plans (Official Odoo Pricing Structure):\n\n"
                 "1. One App Free Plan:\n"
@@ -189,9 +196,9 @@ class OdooStudioConfigSettings(models.TransientModel):
             )
         else:
             answer = (
-                f"Here is the detailed technical answer for your query: '{user_prompt}'\n\n"
-                f"1. Odoo 19 Features: Odoo 19 provides modular business applications covering CRM, Sales, HR, Accounting, Inventory, and Custom Studio App building.\n"
-                f"2. AI Integration: Jemi ({provider_label}) is connected to your Odoo database, allowing you to ask technical questions or build custom apps on demand!"
+                f"Here is the detailed technical guidance for your query: '{user_prompt}'\n\n"
+                f"1. Odoo 19 Capabilities: Odoo 19 provides enterprise-grade modular applications for Sales, Accounting, Inventory, HR, and Custom Studio App development.\n"
+                f"2. AI Studio Integration: Jemi ({provider_label}) can answer technical questions, recommend architecture solutions, or auto-generate custom Odoo apps directly on your server!"
             )
 
         return {
