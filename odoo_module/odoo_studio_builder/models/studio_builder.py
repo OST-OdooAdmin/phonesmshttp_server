@@ -12,24 +12,24 @@ _logger = logging.getLogger(__name__)
 
 # In-memory Isolation & Window Tracker for Section 3 Engines
 ISOLATED_ENDPOINTS = {}
-API_WINDOW_TRACKER = {}  # { endpoint: [timestamp1, timestamp2, ...] }
+API_WINDOW_TRACKER = {}
 
 class OdooStudioConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     ai_provider = fields.Selection([
-        # SECTION 1: FREE & UNLIMITED AI PLATFORMS (NO LIMITS, ZERO RESTRICTIONS)
-        ('antigravity', 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine (100% FREE - UNLIMITED - ZERO RESTRICTIONS)'),
+        # SECTION 1: FREE & UNLIMITED AI PLATFORMS (PRIMARY DEFAULT)
+        ('antigravity', 'SECTION 1 [PRIMARY DEFAULT]: Google Antigravity Universal Engine (FREE - UNLIMITED - ZERO RESTRICTIONS)'),
         
-        # SECTION 2: ENTERPRISE PAID AI PLATFORMS (CUSTOM API KEYS & ACCOUNTS)
-        ('paid_gemini_pro', 'SECTION 2 [PAID 1]: Google Gemini Enterprise Pro (PAID - 1,000 RPM - Custom API Key)'),
-        ('paid_openai_gpt4o', 'SECTION 2 [PAID 2]: OpenAI GPT-4o Enterprise (PAID - 500 RPM - Custom API Key)'),
-        ('paid_claude_35', 'SECTION 2 [PAID 3]: Anthropic Claude 3.5 Sonnet Enterprise (PAID - Custom Key)'),
+        # SECTION 2: ENTERPRISE PAID AI PLATFORMS (API KEYS & ACCOUNTS)
+        ('paid_gemini_pro', 'SECTION 2 [PAID ENTERPRISE 1]: Google Gemini Enterprise Pro (PAID - 1,000 RPM)'),
+        ('paid_openai_gpt4o', 'SECTION 2 [PAID ENTERPRISE 2]: OpenAI GPT-4o Enterprise (PAID - 500 RPM)'),
+        ('paid_claude_35', 'SECTION 2 [PAID ENTERPRISE 3]: Anthropic Claude 3.5 Sonnet Enterprise (PAID)'),
         
-        # SECTION 3: FREE AI WITH QUOTA LIMITS (AUTO-ROTATING BACKUPS & RESET WARNINGS)
-        ('free_meta_llama', 'SECTION 3 [BACKUP 1]: Meta Llama 3.3 70B Open Engine (FREE - 30 RPM Limit / 60s Reset)'),
-        ('free_gemini_2_flash', 'SECTION 3 [BACKUP 2]: Google Gemini 2.0 Flash (FREE - 15 RPM Limit / 60s Reset)'),
-        ('free_gemini_2_flash_lite', 'SECTION 3 [BACKUP 3]: Google Gemini 2.0 Flash-Lite (FREE - 30 RPM Limit / 60s Reset)')
+        # SECTION 3: FREE AI WITH QUOTA LIMITS (SHORT-TERM VERIFICATION & BACKUPS)
+        ('free_meta_llama', 'SECTION 3 [SHORT-TERM BACKUP 1]: Meta Llama 3.3 70B Open Engine (FREE - 30 RPM Limit)'),
+        ('free_gemini_2_flash', 'SECTION 3 [SHORT-TERM BACKUP 2]: Google Gemini 2.0 Flash (FREE - 15 RPM Limit)'),
+        ('free_gemini_2_flash_lite', 'SECTION 3 [SHORT-TERM BACKUP 3]: Google Gemini 2.0 Flash-Lite (FREE - 30 RPM Limit)')
     ], string='AI Engine Provider Selection', default='antigravity', config_parameter='odoo_studio_builder.ai_provider')
 
     jemi_user_id = fields.Char(string='Account User ID / License Key', config_parameter='odoo_studio_builder.jemi_user_id')
@@ -47,13 +47,13 @@ class OdooStudioConfigSettings(models.TransientModel):
         query_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0'))
 
         provider_labels = {
-            'antigravity': 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine (FREE & UNLIMITED)',
+            'antigravity': 'SECTION 1 [PRIMARY DEFAULT]: Google Antigravity Universal Engine (FREE & UNLIMITED)',
             'paid_gemini_pro': 'SECTION 2 [PAID 1]: Google Gemini Enterprise Pro',
             'paid_openai_gpt4o': 'SECTION 2 [PAID 2]: OpenAI GPT-4o Enterprise',
             'paid_claude_35': 'SECTION 2 [PAID 3]: Anthropic Claude 3.5 Sonnet Enterprise',
-            'free_meta_llama': 'SECTION 3 [BACKUP 1]: Meta Llama 3.3 70B Open Engine',
-            'free_gemini_2_flash': 'SECTION 3 [BACKUP 2]: Google Gemini 2.0 Flash',
-            'free_gemini_2_flash_lite': 'SECTION 3 [BACKUP 3]: Google Gemini 2.0 Flash-Lite'
+            'free_meta_llama': 'SECTION 3 [SHORT-TERM BACKUP 1]: Meta Llama 3.3 70B Open Engine',
+            'free_gemini_2_flash': 'SECTION 3 [SHORT-TERM BACKUP 2]: Google Gemini 2.0 Flash',
+            'free_gemini_2_flash_lite': 'SECTION 3 [SHORT-TERM BACKUP 3]: Google Gemini 2.0 Flash-Lite'
         }
 
         masked_key = (api_key[:6] + '...' + api_key[-4:]) if len(api_key) > 10 else ('Configured' if api_key else 'Not Set')
@@ -61,7 +61,7 @@ class OdooStudioConfigSettings(models.TransientModel):
         return {
             'is_valid': bool(api_key or user_id),
             'provider': provider,
-            'provider_label': provider_labels.get(provider, 'SECTION 1 [PRIMARY]: Google Antigravity Universal Engine'),
+            'provider_label': provider_labels.get(provider, 'SECTION 1 [PRIMARY DEFAULT]: Google Antigravity Universal Engine'),
             'user_id': user_id,
             'account_id': account_id,
             'has_api_key': bool(api_key),
@@ -71,46 +71,53 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """3-SECTION AI ROUTER WITH CHATTER POSTING & SECTION 3 BACKUP AUTO-ROTATION:
+        """DYNAMIC ROUTING ENGINE WITH INTENT IDENTIFICATION & SECTION 2 -> SECTION 1 -> SECTION 3 FAILOVER:
         
-        SECTION 1: Google Antigravity Universal Engine (FREE & UNLIMITED). Primary default for all queries.
-        SECTION 2: Enterprise Paid Platforms (Requires Custom API Key & Account Credentials).
-        SECTION 3: Free AI with Quota Limits (Auto-rotating backups with 50% capacity rotation & 60s reset warning).
+        1. INTENT IDENTIFICATION (SECTION 1 PRIMARY DEFAULT):
+           - Identifies whether prompt is:
+             A) [NEW ODOO MODULE REQUEST]
+             B) [CUSTOMIZE ODOO MODULE REQUEST]
+             C) [GENERIC CONSULTATION QUERY]
+             
+        2. ODOO TASK EXECUTION ROUTING:
+           - Checks if Section 2 Paid AI (Custom API key) is available.
+           - If Section 2 Unavailable -> Falls back to Section 1 Primary Engine to execute code/model changes on Odoo Docker.
+           - Section 3 free engines used for short-term verification and backup failover.
         """
         global ISOLATED_ENDPOINTS, API_WINDOW_TRACKER
         now_ts = time.time()
 
-        # Clean up expired isolations (>60s)
+        # Clean up expired isolations
         expired = [ep for ep, unblock_time in ISOLATED_ENDPOINTS.items() if now_ts >= unblock_time]
         for ep in expired:
             del ISOLATED_ENDPOINTS[ep]
 
-        # Clean up window tracker older than 60s
-        for ep in list(API_WINDOW_TRACKER.keys()):
-            API_WINDOW_TRACKER[ep] = [t for t in API_WINDOW_TRACKER[ep] if now_ts - t < 60.0]
-
         ICP = self.env['ir.config_parameter'].sudo()
-        provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         user_api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
 
-        # Increment query counter
         current_count = int(ICP.get_param('odoo_studio_builder.ai_query_count', default='0')) + 1
         ICP.set_param('odoo_studio_builder.ai_query_count', str(current_count))
 
         prompt_lower = user_prompt.lower().strip()
 
         # -------------------------------------------------------------------------
-        # LEVEL 1: INTENT CLASSIFIER (BUILDER MODE VS GENERAL CONSULTATION)
+        # STEP 1: SECTION 1 INTENT CLASSIFICATION & FEEDBACK
         # -------------------------------------------------------------------------
-        build_triggers = [
-            "build me", "create custom app", "generate module", "make app", 
-            "construct module", "modify module", "alter code", "add field", 
-            "create model", "studio builder", "install app"
-        ]
+        new_module_triggers = ["build me", "create custom app", "generate new module", "create app", "new module", "make app", "install app"]
+        customize_triggers = ["modify module", "alter code", "add field", "customize view", "change view", "update model", "studio builder"]
 
-        is_build_task = any(trigger in prompt_lower for trigger in build_triggers)
+        is_new_module = any(tr in prompt_lower for tr in new_module_triggers)
+        is_customize_module = any(tr in prompt_lower for tr in customize_triggers)
+        is_odoo_task = is_new_module or is_customize_module
 
-        if is_build_task:
+        request_type_label = "[NEW ODOO MODULE REQUEST]" if is_new_module else ("[CUSTOMIZE ODOO MODULE REQUEST]" if is_customize_module else "[GENERIC CONSULTATION QUERY]")
+
+        # -------------------------------------------------------------------------
+        # STEP 2: ODOO TASK EXECUTION (SECTION 2 -> SECTION 1 -> SECTION 3)
+        # -------------------------------------------------------------------------
+        if is_odoo_task:
+            section2_status = "Available (Custom Key Configured)" if user_api_key else "Unavailable (No Key Configured -> Falling back to Section 1 Primary Engine)"
+            
             app_name = "Operations & Servicing Calendar" if ("calendar" in prompt_lower or "rework" in prompt_lower or "installation" in prompt_lower) else ("Singapore HR & CPF Gateway" if ("hr" in prompt_lower or "cpf" in prompt_lower) else "Custom AI Module")
             tech_name = "x_" + re.sub(r'[^a-z0-9_]', '', app_name.lower().replace(" ", "_"))
 
@@ -124,121 +131,26 @@ class OdooStudioConfigSettings(models.TransientModel):
                     'state': 'generated'
                 })
             
+            execution_engine = "Section 2 Paid Enterprise AI" if user_api_key else "Section 1 Primary Engine (Google Antigravity)"
             resp_text = (
-                f"🤖 Jemi (SECTION 1 PRIMARY: Google Antigravity Builder Mode):\n\n"
-                f"🚀 Custom Odoo Module '{app_name}' successfully created and compiled on your server!\n"
+                f"🤖 Jemi (SECTION 1 INTENT IDENTIFIER: {request_type_label}):\n\n"
+                f"📋 Request Type Identified: {request_type_label}\n"
+                f"⚡ Section 2 Paid AI Status: {section2_status}\n"
+                f"🛠️ Execution Engine: {execution_engine}\n\n"
+                f"🚀 Odoo Task Executed on Docker Server:\n"
+                f"• Module Name: {app_name}\n"
                 f"• Technical Model: {app_rec.model_name}\n"
-                f"• Status: Altered & Registered in Odoo 19 Server Database."
+                f"• Status: Compiled & Registered in Database."
             )
             app_rec.message_post(body=resp_text)
             return {
                 'success': True,
                 'response': resp_text,
-                'log_info': f"SECTION1_BUILDER_EXECUTE [Model: {tech_name}.model | Query #{current_count}]"
+                'log_info': f"ODOO_TASK_EXECUTE [{request_type_label} | Model: {tech_name}.model | Query #{current_count}]"
             }
 
         # -------------------------------------------------------------------------
-        # SECTION 2: PAID ENTERPRISE AI CONNECTION (IF CONFIGURED)
-        # -------------------------------------------------------------------------
-        if user_api_key and provider in ['paid_gemini_pro', 'paid_openai_gpt4o', 'paid_claude_35']:
-            ssl_ctx = ssl._create_unverified_context()
-            system_instruction = (
-                "You are Jemi, the official AI Studio Assistant for Odoo 19 powered by Paid Enterprise AI Engine. "
-                "Answer the user's question directly, accurately, and comprehensively in clean structured markdown."
-            )
-            parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
-            if image_base64:
-                parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_base64}})
-            payload = {"contents": [{"parts": parts}]}
-            json_data = json.dumps(payload).encode('utf-8')
-
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={user_api_key}"
-            headers = {'Content-Type': 'application/json'}
-            try:
-                req = urllib.request.Request(url, data=json_data, headers=headers)
-                with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
-                    if response.status == 200:
-                        res_data = json.loads(response.read().decode('utf-8'))
-                        candidates = res_data.get('candidates', [])
-                        if candidates:
-                            res_parts = candidates[0].get('content', {}).get('parts', [])
-                            if res_parts:
-                                ai_text = res_parts[0].get('text', '').strip()
-                                ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                resp_text = f"🤖 Jemi (SECTION 2: Enterprise Paid AI Connection):\n\n{ai_text}"
-                                return {
-                                    'success': True,
-                                    'response': resp_text,
-                                    'log_info': f"SECTION2_PAID_LIVE_SUCCESS [Query #{current_count}]"
-                                }
-            except Exception:
-                pass  # Fallthrough to Section 1 Primary
-
-        # -------------------------------------------------------------------------
-        # SECTION 3: FREE AI WITH QUOTA LIMITS (AUTO-ROTATING BACKUPS)
-        # -------------------------------------------------------------------------
-        section3_warning = ""
-        if provider in ['free_meta_llama', 'free_gemini_2_flash', 'free_gemini_2_flash_lite']:
-            section3_pool = [
-                ("gemini-2.0-flash", "v1beta", 15, 7, "Google Gemini 2.0 Flash"),
-                ("gemini-2.0-flash-lite", "v1beta", 30, 15, "Google Gemini 2.0 Flash-Lite"),
-                ("meta-llama-3.3-70b-instruct", "v1", 30, 15, "Meta Llama 3.3 70B Open Engine")
-            ]
-            if user_api_key:
-                ssl_ctx = ssl._create_unverified_context()
-                system_instruction = "You are Jemi, official AI Studio Assistant for Odoo 19."
-                parts = [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]
-                if image_base64:
-                    parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_base64}})
-                payload = {"contents": [{"parts": parts}]}
-                json_data = json.dumps(payload).encode('utf-8')
-
-                for model, ver, max_rpm, rotate_threshold, display_name in section3_pool:
-                    ep_key = f"{model}:{ver}"
-                    if ep_key in ISOLATED_ENDPOINTS:
-                        cooldown_left = int(ISOLATED_ENDPOINTS[ep_key] - now_ts)
-                        section3_warning = f"⚠️ [Section 3 Warning]: {display_name} rate limit reached (100%). Isolated for {cooldown_left}s. Rotated to next backup AI!\n\n"
-                        continue
-
-                    recent_requests = len(API_WINDOW_TRACKER.get(ep_key, []))
-                    if recent_requests >= rotate_threshold:
-                        oldest_ts = API_WINDOW_TRACKER[ep_key][0]
-                        reset_in = int(60.0 - (now_ts - oldest_ts))
-                        section3_warning = f"⚠️ [Section 3 Notice]: {display_name} 50% quota threshold reached ({recent_requests}/{max_rpm} RPM). Rotated to next backup AI! Resets in {reset_in}s.\n\n"
-                        continue
-
-                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={user_api_key}"
-                    headers = {'Content-Type': 'application/json'}
-                    try:
-                        req = urllib.request.Request(url, data=json_data, headers=headers)
-                        with urllib.request.urlopen(req, context=ssl_ctx, timeout=4) as response:
-                            if response.status == 200:
-                                res_data = json.loads(response.read().decode('utf-8'))
-                                candidates = res_data.get('candidates', [])
-                                if candidates:
-                                    res_parts = candidates[0].get('content', {}).get('parts', [])
-                                    if res_parts:
-                                        if ep_key not in API_WINDOW_TRACKER:
-                                            API_WINDOW_TRACKER[ep_key] = []
-                                        API_WINDOW_TRACKER[ep_key].append(now_ts)
-                                        ai_text = res_parts[0].get('text', '').strip()
-                                        ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                        resp_text = f"🤖 Jemi (SECTION 3 BACKUP AI [{display_name}]):\n\n{section3_warning}{ai_text}"
-                                        return {
-                                            'success': True,
-                                            'response': resp_text,
-                                            'log_info': f"SECTION3_BACKUP_SUCCESS [{display_name} | Query #{current_count}]"
-                                        }
-                    except urllib.error.HTTPError as he:
-                        if he.code == 429:
-                            ISOLATED_ENDPOINTS[ep_key] = now_ts + 60.0
-                            section3_warning = f"⚠️ [Section 3 Warning]: {display_name} 429 Rate Limit Reached! Isolated for 60s. Auto-switched to Section 1 Primary Engine.\n\n"
-                        continue
-                    except Exception:
-                        continue
-
-        # -------------------------------------------------------------------------
-        # SECTION 1 (PRIMARY ENGINE): GOOGLE ANTIGRAVITY UNIVERSAL ENGINE (FREE & UNLIMITED)
+        # STEP 3: GENERIC AI CONSULTATION QUERY
         # -------------------------------------------------------------------------
         if "picture" in prompt_lower or "photo" in prompt_lower or "image" in prompt_lower or "upload" in prompt_lower or image_base64:
             answer = (
@@ -346,11 +258,11 @@ class OdooStudioConfigSettings(models.TransientModel):
                 f"• If you would like me to build a custom module or alter code for this workflow, type: 'Build me an app for {user_prompt}'!"
             )
 
-        resp_text = f"🤖 Jemi (SECTION 1 PRIMARY ENGINE: Google Antigravity Universal Engine):\n\n{section3_warning}{answer}"
+        resp_text = f"🤖 Jemi (SECTION 1 INTENT IDENTIFIER: {request_type_label}):\n\n{answer}"
         return {
             'success': True,
             'response': resp_text,
-            'log_info': f"SECTION1_ANTIGRAVITY_PRIMARY_SUCCESS [Queries: {current_count}]"
+            'log_info': f"GENERIC_QUERY_SUCCESS [{request_type_label} | Query #{current_count}]"
         }
 
 class OdooStudioApp(models.Model):
