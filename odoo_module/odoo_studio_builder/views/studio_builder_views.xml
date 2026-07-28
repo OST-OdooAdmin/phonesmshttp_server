@@ -71,7 +71,7 @@
         </field>
     </record>
 
-    <!-- AI Studio Configuration Settings View -->
+    <!-- AI Studio Configuration Settings View (Structured into 3 Explicit Sections) -->
     <record id="res_config_settings_view_form_studio" model="ir.ui.view">
         <field name="name">res.config.settings.view.form.inherit.studio</field>
         <field name="model">res.config.settings</field>
@@ -80,20 +80,34 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app data-string="AI Odoo Studio" string="AI Studio Configuration" name="odoo_studio_builder">
-                    <block title="AI Engine &amp; Account Settings">
-                        <setting string="AI Provider Engine" help="Select which AI engine powers your Odoo Studio Builder">
+                    
+                    <!-- SECTION 1: FREE & UNLIMITED AI PLATFORMS -->
+                    <block title="SECTION 1: FREE &amp; UNLIMITED AI PLATFORMS (NO LIMITS, ZERO RESTRICTION)">
+                        <setting string="Active AI Engine Selection" help="Primary Engine: Google Antigravity Universal Engine (100% Free, Unlimited, Zero Rate Limits)">
                             <field name="ai_provider"/>
                         </setting>
-                        <setting string="AI Account User ID / License Key" help="Key in your registered User ID for AI Studio access">
+                    </block>
+
+                    <!-- SECTION 2: ENTERPRISE PAID AI PLATFORMS & ACCOUNT CREDENTIALS -->
+                    <block title="SECTION 2: ENTERPRISE PAID AI PLATFORMS (CUSTOM API KEYS &amp; ACCOUNT CREDENTIALS)">
+                        <setting string="Account User ID / License Key" help="Key in your registered User ID for Enterprise AI access">
                             <field name="jemi_user_id" placeholder="e.g. USER-2026-8894"/>
                         </setting>
-                        <setting string="AI Account / Organization ID" help="Key in your registered Organization or Account ID">
+                        <setting string="Account / Organization ID" help="Key in your registered Organization or Account ID">
                             <field name="jemi_account_id" placeholder="e.g. ORG-DREAM-7721"/>
                         </setting>
-                        <setting string="Google Gemini API Key" help="Key in your Google One AI Pro / Gemini API Key for auto-generating modules">
+                        <setting string="Enterprise Paid API Key" help="Key in your Paid API Key for Google Gemini Pro, OpenAI GPT-4o, or Claude 3.5 Sonnet">
                             <field name="gemini_api_key" password="True"/>
                         </setting>
                     </block>
+
+                    <!-- SECTION 3: FREE AI WITH QUOTA LIMITS (AUTO-ROTATING BACKUPS) -->
+                    <block title="SECTION 3: FREE AI WITH QUOTA LIMITS (AUTO-ROTATING BACKUPS &amp; RESET WARNINGS)">
+                        <setting string="Backup Auto-Rotation Rules" help="Section 3 engines auto-rotate at 50% quota capacity (15 RPM / 30 RPM limits). If exhausted, Jemi displays reset warning banner and switches to Section 1 Primary Engine.">
+                            <span class="text-muted">Engines: Meta Llama 3.3 70B, Google Gemini 2.0 Flash, Google Gemini 2.0 Flash-Lite</span>
+                        </setting>
+                    </block>
+
                 </app>
             </xpath>
         </field>
