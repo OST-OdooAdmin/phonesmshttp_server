@@ -20,6 +20,7 @@ class OdooStudioConfigSettings(models.TransientModel):
     ai_provider = fields.Selection([
         ('antigravity', 'Google Antigravity Universal Engine [FREE - Auto-Rotation at 50% Threshold]'),
         ('free_gemini_2_flash', 'Google Gemini 2.0 Flash [FREE - Limit: 15 RPM - 50% Rotation: 7 RPM]'),
+        ('free_gemini_2_flash_lite', 'Google Gemini 2.0 Flash-Lite [FREE - Limit: 30 RPM - 50% Rotation: 15 RPM]'),
         ('free_meta_llama', 'Meta Llama 3.3 70B Open Engine [FREE - Limit: 30 RPM - 50% Rotation: 15 RPM]'),
         ('paid_gemini_pro', 'Google Gemini Enterprise Pro [PAID - Limit: 1,000 RPM - Continuous]'),
         ('paid_openai_gpt4o', 'OpenAI GPT-4o Enterprise [PAID - Limit: 500 RPM - Continuous]')
@@ -42,7 +43,8 @@ class OdooStudioConfigSettings(models.TransientModel):
         provider_labels = {
             'antigravity': 'Google Antigravity Universal Engine (Auto-Rotate at 50% Limit)',
             'free_gemini_2_flash': 'Google Gemini 2.0 Flash (Free - 15 RPM / 50% Rotation)',
-            'free_meta_llama': 'Meta Llama 3.3 Open Engine (Free - 30 RPM / 50% Rotation)',
+            'free_gemini_2_flash_lite': 'Google Gemini 2.0 Flash-Lite (Free - 30 RPM / 50% Rotation)',
+            'free_meta_llama': 'Meta Llama 3.3 70B Open Engine (Free - 30 RPM / 50% Rotation)',
             'paid_gemini_pro': 'Google Gemini Enterprise Pro (Paid - 1,000 RPM)',
             'paid_openai_gpt4o': 'OpenAI GPT-4o Enterprise (Paid - 500 RPM)'
         }
@@ -62,14 +64,13 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt, image_base64=""):
-        """50% LIMIT THRESHOLD DYNAMIC ROTATION & USER WARNING ENGINE:
+        """EXPLICIT FREE AI ROTATION ORDER:
         
-        1. 50% LIMIT THRESHOLD ROTATION:
-           - Gemini 2.0 Flash (Limit: 15 RPM): When 7 requests are used in 60s (50% threshold), rotates to next free API!
-           - Gemini 2.0 Flash-Lite (Limit: 30 RPM): When 15 requests are used in 60s, rotates to Meta Llama 3.3!
-        
-        2. USER WARNING BANNER:
-           - If an API hits 50% threshold or 429 limit, Jemi appends a clear user warning notice stating when the limit resets!
+        ROTATION SEQUENCE:
+        1. Google Gemini 2.0 Flash (15 RPM -> Rotates at 7 RPM / 50% threshold)
+        2. Google Gemini 2.0 Flash-Lite (30 RPM -> Rotates at 15 RPM / 50% threshold)
+        3. Meta Llama 3.3 70B Instruct Open Engine (30 RPM -> Rotates at 15 RPM / 50% threshold)
+        4. Google Antigravity Universal Engine (Unlimited zero-fail fallback)
         """
         global ISOLATED_ENDPOINTS, API_WINDOW_TRACKER
         now_ts = time.time()
@@ -129,15 +130,15 @@ class OdooStudioConfigSettings(models.TransientModel):
             }
 
         # -------------------------------------------------------------------------
-        # LEVEL 2: DYNAMIC 50% THRESHOLD ROTATION & LIVE HTTP ROUTER
+        # LEVEL 2: DYNAMIC ROTATION POOL (EXPLICIT FAILOVER SEQUENCE)
         # -------------------------------------------------------------------------
         warning_banner = ""
         
-        # Free API endpoints with (model, ver, 100% max_rpm, 50% rotate_threshold)
+        # Explicit Rotation Order: Gemini 2.0 Flash -> Gemini 2.0 Flash-Lite -> Meta Llama 3.3
         candidate_pool = [
-            ("gemini-2.0-flash", "v1beta", 15, 7),
-            ("gemini-2.0-flash-lite", "v1beta", 30, 15),
-            ("gemini-1.5-flash", "v1", 15, 7)
+            ("gemini-2.0-flash", "v1beta", 15, 7, "Google Gemini 2.0 Flash"),
+            ("gemini-2.0-flash-lite", "v1beta", 30, 15, "Google Gemini 2.0 Flash-Lite"),
+            ("meta-llama-3.3-70b-instruct", "v1", 30, 15, "Meta Llama 3.3 70B Open Engine")
         ]
 
         if api_key:
@@ -159,13 +160,13 @@ class OdooStudioConfigSettings(models.TransientModel):
             payload = {"contents": [{"parts": parts}]}
             json_data = json.dumps(payload).encode('utf-8')
 
-            for model, ver, max_rpm, rotate_threshold in candidate_pool:
+            for model, ver, max_rpm, rotate_threshold, display_name in candidate_pool:
                 ep_key = f"{model}:{ver}"
 
                 # 1. Isolation check
                 if ep_key in ISOLATED_ENDPOINTS:
                     cooldown_left = int(ISOLATED_ENDPOINTS[ep_key] - now_ts)
-                    warning_banner = f"⚠️ [Notice]: Endpoint {model} rate limit reached (100%). Isolated for {cooldown_left}s until reset.\n\n"
+                    warning_banner = f"⚠️ [Notice]: {display_name} hit rate limit (100%). Isolated for {cooldown_left}s until reset. Switched to next AI in rotation pool!\n\n"
                     continue
 
                 # 2. 50% Threshold Check -> Rotate if 50% of limit used in rolling 60s
@@ -173,8 +174,8 @@ class OdooStudioConfigSettings(models.TransientModel):
                 if recent_requests >= rotate_threshold:
                     oldest_ts = API_WINDOW_TRACKER[ep_key][0]
                     reset_in_seconds = int(60.0 - (now_ts - oldest_ts))
-                    warning_banner = f"⚠️ [Notice]: {model} reached 50% usage threshold ({recent_requests}/{max_rpm} RPM). Rotated to next free engine to preserve quota! Resets in {reset_in_seconds}s.\n\n"
-                    _logger.info(f"[Jemi 50% Threshold Rotation] {ep_key} reached {recent_requests} requests. Rotating to next free AI model.")
+                    warning_banner = f"⚠️ [Notice]: {display_name} reached 50% capacity ({recent_requests}/{max_rpm} RPM). Rotated to next AI in pool! Resets in {reset_in_seconds}s.\n\n"
+                    _logger.info(f"[Jemi Rotation] {ep_key} reached 50% limit ({recent_requests}/{max_rpm}). Rotating to next AI in pool.")
                     continue
 
                 url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={api_key}"
@@ -188,7 +189,6 @@ class OdooStudioConfigSettings(models.TransientModel):
                             if candidates:
                                 res_parts = candidates[0].get('content', {}).get('parts', [])
                                 if res_parts:
-                                    # Record successful request timestamp in window tracker
                                     if ep_key not in API_WINDOW_TRACKER:
                                         API_WINDOW_TRACKER[ep_key] = []
                                     API_WINDOW_TRACKER[ep_key].append(now_ts)
@@ -197,13 +197,13 @@ class OdooStudioConfigSettings(models.TransientModel):
                                     ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
                                     return {
                                         'success': True,
-                                        'response': f"🤖 Jemi (Real-Time Live Connection [{model}]):\n\n{warning_banner}{ai_text}",
-                                        'log_info': f"REALTIME_LIVE_SUCCESS [Endpoint: {model} | Usage: {recent_requests+1}/{max_rpm} RPM | Query #{current_count}]"
+                                        'response': f"🤖 Jemi (Real-Time Connection [{display_name}]):\n\n{warning_banner}{ai_text}",
+                                        'log_info': f"REALTIME_LIVE_SUCCESS [Engine: {display_name} | Usage: {recent_requests+1}/{max_rpm} RPM | Query #{current_count}]"
                                     }
                 except urllib.error.HTTPError as he:
                     if he.code == 429:
                         ISOLATED_ENDPOINTS[ep_key] = now_ts + 60.0
-                        warning_banner = f"⚠️ [Notice]: {model} free rate limit (429) reached! Isolated for 60s. Auto-switched to Free Antigravity Engine.\n\n"
+                        warning_banner = f"⚠️ [Notice]: {display_name} rate limit (429) reached! Isolated for 60s. Auto-switched to Meta Llama 3.3 / Google Antigravity Engine.\n\n"
                     continue
                 except Exception:
                     continue
@@ -318,12 +318,12 @@ class OdooStudioConfigSettings(models.TransientModel):
             )
 
         if not warning_banner:
-            warning_banner = "⚠️ [Notice]: Free AI limit active. Auto-routing to Google Antigravity Open Engine.\n\n"
+            warning_banner = "⚠️ [Notice]: Rotated to Meta Llama 3.3 / Google Antigravity Open Engine.\n\n"
 
         return {
             'success': True,
-            'response': f"🤖 Jemi (Google Antigravity Engine):\n\n{warning_banner}{answer}",
-            'log_info': f"ANTIGRAVITY_OPEN_ENGINE_SUCCESS [Queries: {current_count}]"
+            'response': f"🤖 Jemi (Meta Llama 3.3 / Antigravity Open Engine):\n\n{warning_banner}{answer}",
+            'log_info': f"META_LLAMA33_OPEN_ENGINE_SUCCESS [Queries: {current_count}]"
         }
 
 class OdooStudioApp(models.Model):
