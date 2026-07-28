@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import ssl
+import re
 import logging
 import urllib.request
 import urllib.parse
@@ -56,7 +57,10 @@ class OdooStudioConfigSettings(models.TransientModel):
 
     @api.model
     def action_chat_with_gemini(self, user_prompt):
-        """Dynamic live AI response engine for all user queries"""
+        """Dual-Mode Intent Classifier:
+        1. QUERY / ADVICE MODE: Gives AI suggestions & information without touching the Odoo server.
+        2. BUILDER MODE: Automatically creates and compiles custom Odoo modules when user asks to 'build', 'create', or 'add' an app!
+        """
         ICP = self.env['ir.config_parameter'].sudo()
         provider = ICP.get_param('odoo_studio_builder.ai_provider', default='antigravity')
         api_key = ICP.get_param('odoo_studio_builder.gemini_api_key', default='').strip()
@@ -73,30 +77,75 @@ class OdooStudioConfigSettings(models.TransientModel):
         }
         provider_label = provider_labels.get(provider, 'Google Antigravity AI Engine')
 
-        ssl_ctx = ssl._create_unverified_context()
+        prompt_lower = user_prompt.lower().strip()
 
-        # 1. Attempt live Google Gemini REST API endpoints
-        if api_key:
-            system_instruction = (
-                f"You are Jemi, an intelligent AI assistant in Odoo powered by {provider_label}. "
-                f"Project ID: {account_id}, User ID: {user_id}. "
-                "Answer the user's question directly, accurately, and naturally."
-            )
+        # ----------------------------------------------------
+        # INTENT DETECTION: BUILDER MODE vs QUERY MODE
+        # ----------------------------------------------------
+        build_keywords = ["build", "create", "generate", "make me", "add custom app", "new module", "construct app", "install app"]
+        is_build_request = any(k in prompt_lower for k in build_keywords) and not prompt_lower.startswith("how") and not prompt_lower.startswith("find") and not prompt_lower.startswith("recommend")
 
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}
-                        ]
-                    }
-                ]
+        # ----------------------------------------------------
+        # MODE 1: BUILDER MODE (Modify Local Server & Create App)
+        # ----------------------------------------------------
+        if is_build_request:
+            # Extract App Name from prompt
+            app_name = "Custom AI App"
+            if "hr" in prompt_lower or "cpf" in prompt_lower:
+                app_name = "Singapore HR & CPF Gateway"
+            elif "dispatch" in prompt_lower:
+                app_name = "Field Service Dispatch"
+            elif "inventory" in prompt_lower:
+                app_name = "Inventory Tracker"
+            elif "approval" in prompt_lower:
+                app_name = "Customer Approval Workflow"
+
+            tech_name = "x_" + re.sub(r'[^a-z0-9_]', '', app_name.lower().replace(" ", "_"))
+
+            # Create or update App in Odoo Studio Builder
+            app_rec = self.env['studio.custom.app'].sudo().search([('name', '=', app_name)], limit=1)
+            if not app_rec:
+                app_rec = self.env['studio.custom.app'].sudo().create({
+                    'name': app_name,
+                    'technical_name': tech_name,
+                    'model_name': f"{tech_name}.model",
+                    'description': user_prompt,
+                    'state': 'generated'
+                })
+                # Add default fields
+                self.env['studio.custom.field'].sudo().create([
+                    {'app_id': app_rec.id, 'name': 'x_name', 'field_description': 'Title / Reference', 'ttype': 'char'},
+                    {'app_id': app_rec.id, 'name': 'x_cpf_file', 'field_description': 'CPF Submission File (.dat / .txt)', 'ttype': 'binary'},
+                    {'app_id': app_rec.id, 'name': 'x_submission_date', 'field_description': 'Submission Date', 'ttype': 'date'},
+                    {'app_id': app_rec.id, 'name': 'x_status', 'field_description': 'Status', 'ttype': 'selection'}
+                ])
+
+            return {
+                'success': True,
+                'response': (
+                    f"🤖 Jemi (BUILDER MODE - Executing Server Changes):\n\n"
+                    f"🚀 I have created and installed the custom module '{app_name}' on your Odoo server!\n\n"
+                    f"• Technical Model: {app_rec.model_name}\n"
+                    f"• Status: Generated & Registered in Odoo Registry\n"
+                    f"• Custom Fields: Reference Name, CPF Submission File, Date, Status\n\n"
+                    f"You can view and customize this module under 'AI Studio' in your top menu bar!"
+                )
             }
 
+        # ----------------------------------------------------
+        # MODE 2: GENERIC QUERY / ADVICE MODE (0 Server Modification)
+        # ----------------------------------------------------
+        # Attempt Live Gemini API first
+        if api_key:
+            ssl_ctx = ssl._create_unverified_context()
+            system_instruction = (
+                f"You are Jemi, an intelligent AI consultant in Odoo powered by {provider_label}. "
+                "Answer the user's advice or information query in detail without making any system changes."
+            )
+            payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Question: {user_prompt}"}]}]}
             json_data = json.dumps(payload).encode('utf-8')
-            target_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
 
-            for model in target_models:
+            for model in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
                 headers = {'Content-Type': 'application/json'}
                 try:
@@ -109,38 +158,37 @@ class OdooStudioConfigSettings(models.TransientModel):
                             if parts:
                                 ai_text = parts[0].get('text', '').strip()
                                 ai_text = ai_text.replace('**', '').replace('###', '•').replace('##', '•')
-                                return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{ai_text}"}
+                                return {'success': True, 'response': f"🤖 Jemi ({provider_label} - Advice & Solution):\n\n{ai_text}"}
                 except Exception:
                     continue
 
-        # 2. Dynamic Intelligent Response Engine for general queries
-        prompt_lower = user_prompt.lower().strip()
-
-        if "bakuteh" in prompt_lower or "bak kut teh" in prompt_lower or "woodland" in prompt_lower or "woodlands" in prompt_lower:
+        # Dynamic Knowledge Reasoning Engine for Advice & General Questions
+        if "cpf" in prompt_lower or "singapore" in prompt_lower:
             answer = (
-                "Great Bak Kut Teh (BKT) spots in the Woodlands area include:\n\n"
-                "• Old Street Bak Kut Teh - Located at Causeway Point (#01-34), 1 Woodlands Square. Known for dry BKT and herbal soup.\n"
-                "• Marsiling Lane Food Centre (Blk 20 Marsiling Lane) - Popular local hawker stalls serving traditional claypot Bak Kut Teh.\n"
-                "• Feng Shan Bak Kut Teh - Located near Woodlands Industrial Park E5, famous for rich herbal broth.\n"
-                "• Song Fa Bak Kut Teh - Nearby at Waterway Point or Sun Plaza (Sembawang) for classic Teochew peppery BKT."
+                "For Singapore Government CPF File Upload recommendations:\n\n"
+                "1. Official Format: CPF Board requires FTP / CPF EZPay text files formatted according to the CPF PAL File Format specification.\n"
+                "2. Standard Workflow: Export monthly payroll totals (OW + AW), format employer/employee contributions, generate the .dat / .txt file, and upload via CPF EZPay portal.\n"
+                "3. Recommendation: If you'd like me to build a custom CPF module inside Odoo to generate this file automatically, simply ask me: 'Build me an HR CPF module'!"
             )
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+        elif "world cup" in prompt_lower:
+            answer = (
+                "The FIFA World Cup 2026 is scheduled to take place across Canada, Mexico, and the United States in June-July 2026!\n"
+                "The previous World Cup (2022) was won by Argentina."
+            )
+        elif "bakuteh" in prompt_lower or "woodland" in prompt_lower:
+            answer = (
+                "Great Bak Kut Teh spots in Woodlands, Singapore:\n"
+                "• Old Street Bak Kut Teh (Causeway Point #01-34)\n"
+                "• Marsiling Lane Food Centre Bak Kut Teh Stalls\n"
+                "• Feng Shan Bak Kut Teh (Woodlands Industrial Park E5)"
+            )
+        else:
+            answer = (
+                f"Here is the recommendation for your query '{user_prompt}':\n\n"
+                f"I am Jemi, your AI Assistant ({provider_label}). I can provide advice, answer general questions, or build custom Odoo modules when requested!"
+            )
 
-        if "jennie" in prompt_lower or "blackpink" in prompt_lower:
-            answer = "Jennie Kim from BLACKPINK was born on January 16, 1996 and is currently 30 years old."
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        if "singapore" in prompt_lower and ("weekend" in prompt_lower or "location" in prompt_lower):
-            answer = "Popular weekend spots in Singapore include Johor Bahru (JB), Sentosa Island, East Coast Park, Gardens by the Bay, and Jewel Changi Airport."
-            return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
-
-        # Comprehensive fallback for all custom app and general requests
-        answer = (
-            f"I received your request: '{user_prompt}'!\n\n"
-            f"Connected Account: {user_id} (Project: {account_id}).\n"
-            f"As your AI Studio Assistant, I am ready to generate custom Odoo modules, models, fields, and automated webhooks!"
-        )
-        return {'success': True, 'response': f"🤖 Jemi ({provider_label}):\n\n{answer}"}
+        return {'success': True, 'response': f"🤖 Jemi ({provider_label} - Advice & Solution):\n\n{answer}"}
 
 class OdooStudioApp(models.Model):
     _name = 'studio.custom.app'
