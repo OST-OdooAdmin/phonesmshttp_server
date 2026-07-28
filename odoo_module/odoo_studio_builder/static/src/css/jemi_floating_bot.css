@@ -1,4 +1,4 @@
-/* Floating AI Bot "Jemi" Styling for Odoo 18/19 */
+/* Floating AI Bot "Jemi" Styling for Odoo 18/19/19.4 */
 .jemi-floating-btn {
     position: fixed;
     bottom: 25px;
@@ -46,9 +46,9 @@
 
 /* Expanded Window State */
 .jemi-chat-drawer.is-expanded {
-    width: 720px;
+    width: 740px;
     max-width: 95vw;
-    height: 720px;
+    height: 740px;
     max-height: 85vh;
 }
 
@@ -179,17 +179,19 @@
     gap: 8px;
 }
 
-.jemi-upload-btn {
+.jemi-upload-btn, .jemi-voice-btn {
     font-size: 20px;
     cursor: pointer;
     padding: 4px;
+    background: transparent;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: transform 0.2s;
 }
 
-.jemi-upload-btn:hover {
+.jemi-upload-btn:hover, .jemi-voice-btn:hover {
     transform: scale(1.2);
 }
 

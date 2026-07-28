@@ -1,28 +1,28 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted, xml } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
 
 export class JemiFloatingBot extends Component {
     static template = xml`
         <div class="jemi-bot-container">
-            <!-- Floating Launcher Button 🤖 -->
-            <div class="jemi-floating-btn" t-on-click="toggleChat" title="Chat with Jemi (AI Studio Assistant)">
+            <!-- Floating Launcher Button 🤖 (Shortcut: Ctrl + K) -->
+            <div class="jemi-floating-btn" t-on-click="toggleChat" title="Chat with Jemi AI Studio (Press Ctrl + K)">
                 🤖
             </div>
 
-            <!-- Floating Chat Drawer Window -->
+            <!-- Floating Chat Drawer Window (Odoo 19.4 AI Studio Parity) -->
             <div t-if="state.isOpen" t-attf-class="jemi-chat-drawer #{state.isExpanded ? 'is-expanded' : ''}">
                 <!-- Header -->
                 <div class="jemi-chat-header">
-                    <span>🤖 Jemi (AI Studio Assistant)</span>
+                    <span>🤖 Jemi (Odoo 19.4 AI Studio Assistant)</span>
                     <div class="jemi-chat-header-actions">
                         <button class="jemi-action-btn" t-on-click="toggleExpand" t-att-title="state.isExpanded ? 'Contract Window' : 'Expand Window'">
                             <t t-if="state.isExpanded">🗗</t>
                             <t t-else="">⤢</t>
                         </button>
-                        <button class="jemi-action-btn" t-on-click="toggleChat" title="Close Window">
+                        <button class="jemi-action-btn" t-on-click="toggleChat" title="Close Window (Ctrl + K)">
                             ✕
                         </button>
                     </div>
@@ -39,7 +39,7 @@ export class JemiFloatingBot extends Component {
                             <div class="jemi-msg-content">
                                 <t t-out="msg.text"/>
                             </div>
-                            <!-- Copy Button for Bot Responses (Copies Question, Response & Diagnostic Logs) -->
+                            <!-- Copy Button for Bot Responses -->
                             <div t-if="msg.sender == 'bot'" class="jemi-msg-actions">
                                 <button class="jemi-copy-btn" t-on-click="() => this.copyBothQuestionAndResponseWithLogs(msg_index)">
                                     <t t-if="msg.copied">✓ Copied Q&amp;A + Logs!</t>
@@ -49,7 +49,7 @@ export class JemiFloatingBot extends Component {
                         </div>
                     </t>
                     <div t-if="state.isLoading" class="jemi-msg jemi-msg-bot">
-                        🤖 Jemi is analyzing your request... 💭
+                        🤖 Jemi is processing with Odoo 19.4 AI Engine... 💭
                     </div>
                 </div>
 
@@ -60,16 +60,27 @@ export class JemiFloatingBot extends Component {
                     <button class="jemi-remove-img-btn" t-on-click="removePendingImage">✕</button>
                 </div>
 
-                <!-- Input Footer -->
+                <!-- Voice Recording Active Banner -->
+                <div t-if="state.isRecording" class="jemi-pending-img-banner" style="background: #FFF3F3; color: #D9534F;">
+                    <span>🎙️ Listening... Speak your prompt clearly!</span>
+                    <button class="jemi-remove-img-btn" t-on-click="toggleVoiceRecording" style="color: #D9534F;">⏹ Stop</button>
+                </div>
+
+                <!-- Input Footer (Odoo 19.4 Multimodal: Text, Image 📷, Voice 🎙️) -->
                 <div class="jemi-chat-footer">
                     <!-- Image Upload Button 📷 -->
                     <label class="jemi-upload-btn" title="Upload Image / Screenshot to Jemi AI">
                         📷
                         <input type="file" accept="image/*" t-on-change="onImageSelected" style="display: none;"/>
                     </label>
+                    <!-- Voice Recording Microphone Button 🎙️ -->
+                    <button class="jemi-voice-btn" t-on-click="toggleVoiceRecording" t-att-title="state.isRecording ? 'Stop Voice Recording' : 'Speak Prompt (Odoo 19.4 Voice AI)'">
+                        <t t-if="state.isRecording">🔴</t>
+                        <t t-else="">🎙️</t>
+                    </button>
                     <input type="text"
                            class="jemi-input"
-                           placeholder="Ask Jemi anything or analyze an image..."
+                           placeholder="Ask Jemi, dictate voice 🎙️, or build app (Ctrl + K)..."
                            t-model="state.inputMessage"
                            t-on-keydown="onKeyPress"/>
                     <button class="jemi-send-btn" t-on-click="sendMessage">
@@ -87,21 +98,83 @@ export class JemiFloatingBot extends Component {
             inputMessage: "",
             pendingImageBase64: null,
             pendingImageUrl: null,
+            isRecording: false,
             messages: [
                 {
                     sender: "bot",
-                    text: "🤖 Jemi (AI Studio Assistant):\nHi! I am Jemi, your AI Studio Assistant powered by Google Gemini!\n\nAsk me anything, upload images 📷, or describe your custom Odoo app requirements!",
+                    text: "🤖 Jemi (Odoo 19.4 AI Studio Engine):\nHi! I am Jemi, your Odoo 19.4 AI Studio Assistant!\n\n• Press Ctrl + K anytime to open/close me.\n• Dictate voice prompts 🎙️ or upload images 📷.\n• Ask general AI queries or tell me: 'Build me an app for...'",
                     copied: false,
-                    logInfo: "Initial System Message [Engine: Google Antigravity AI Engine]"
+                    logInfo: "Odoo 19.4 AI Engine Initialized"
                 }
             ],
             isLoading: false,
             credentials: null
         });
 
+        this.recognition = null;
+
         onMounted(() => {
             this.verifyAccountCredentials();
+            this.setupGlobalKeyboardShortcut();
+            this.setupVoiceRecognition();
         });
+
+        onWillUnmount(() => {
+            if (this.globalKeyHandler) {
+                window.removeEventListener("keydown", this.globalKeyHandler);
+            }
+        });
+    }
+
+    setupGlobalKeyboardShortcut() {
+        this.globalKeyHandler = (ev) => {
+            if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
+                ev.preventDefault();
+                this.toggleChat();
+            }
+        };
+        window.addEventListener("keydown", this.globalKeyHandler);
+    }
+
+    setupVoiceRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = false;
+            this.recognition.interimResults = true;
+            this.recognition.lang = "en-US";
+
+            this.recognition.onresult = (event) => {
+                let transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                this.state.inputMessage = transcript;
+            };
+
+            this.recognition.onend = () => {
+                this.state.isRecording = false;
+            };
+
+            this.recognition.onerror = (event) => {
+                console.error("[Jemi Speech Recognition Error]", event.error);
+                this.state.isRecording = false;
+            };
+        }
+    }
+
+    toggleVoiceRecording() {
+        if (!this.recognition) {
+            alert("Voice Speech Recognition is not supported by your browser. Please type your prompt.");
+            return;
+        }
+        if (this.state.isRecording) {
+            this.recognition.stop();
+            this.state.isRecording = false;
+        } else {
+            this.state.isRecording = true;
+            this.recognition.start();
+        }
     }
 
     async verifyAccountCredentials() {
@@ -114,7 +187,6 @@ export class JemiFloatingBot extends Component {
             });
             if (res && res.is_valid) {
                 this.state.credentials = res;
-                console.log("[Jemi Bot] Account verified:", res);
             }
         } catch (e) {
             console.error("[Jemi Bot] RPC Verification error:", e);
@@ -148,24 +220,21 @@ export class JemiFloatingBot extends Component {
     copyBothQuestionAndResponseWithLogs(msgIndex) {
         let fullCombinedText = "";
         
-        // 1. User Question
         if (msgIndex > 0 && this.state.messages[msgIndex - 1] && this.state.messages[msgIndex - 1].sender === "user") {
             fullCombinedText += "User Question: " + this.state.messages[msgIndex - 1].text + "\n\n";
         }
         
-        // 2. Bot Response
         if (this.state.messages[msgIndex]) {
             fullCombinedText += this.state.messages[msgIndex].text + "\n\n";
         }
 
-        // 3. Diagnostic Logs
         const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
         const cred = this.state.credentials || {};
-        const logData = this.state.messages[msgIndex] ? (this.state.messages[msgIndex].logInfo || "Mode: Live AI Execution") : "";
+        const logData = this.state.messages[msgIndex] ? (this.state.messages[msgIndex].logInfo || "Mode: Live Odoo 19.4 AI Execution") : "";
 
         fullCombinedText += "--- DIAGNOSTIC SYSTEM LOG ---\n";
         fullCombinedText += `Timestamp: ${now}\n`;
-        fullCombinedText += `AI Engine Provider: ${cred.provider_label || 'Google Antigravity AI Engine'}\n`;
+        fullCombinedText += `AI Engine Provider: ${cred.provider_label || 'Odoo 19.4 AI Studio Engine'}\n`;
         fullCombinedText += `Account User ID: ${cred.user_id || '1012374182157'}\n`;
         fullCombinedText += `Organization ID: ${cred.account_id || 'gen-lang-client-0177342458'}\n`;
         fullCombinedText += `API Key Masked: ${cred.masked_key || 'AQ.Ab8RN...7342458'}\n`;
@@ -221,12 +290,12 @@ export class JemiFloatingBot extends Component {
                     sender: "bot",
                     text: res.response,
                     copied: false,
-                    logInfo: res.log_info || "Status 200 OK [Google Antigravity AI Engine]"
+                    logInfo: res.log_info || "Status 200 OK [Odoo 19.4 AI Engine]"
                 });
             } else {
                 this.state.messages.push({
                     sender: "bot",
-                    text: "⚠️ No response received from Gemini API.",
+                    text: "⚠️ No response received from Odoo 19.4 AI Engine.",
                     copied: false,
                     logInfo: "Status: Empty Response"
                 });
