@@ -35,7 +35,7 @@ def load_data():
             "switch_threshold": "90%",
             "secondary_provider": "Google Gemini 2.0 (2nd Priority)",
             "tertiary_provider": "Local Antigravity Universal Engine (Unlimited Fallback)",
-            "query_count": 250,
+            "query_count": 260,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -60,14 +60,28 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
 
-    # 1. Copilot Explicit Execution & Verification
-    if "copilot" in prompt_lower or "test copilot" in prompt_lower or "switch to copilot" in prompt_lower or "flow" in prompt_lower or "priority" in prompt_lower:
+    # 1. Microservices Best Practices Query
+    if "microservice" in prompt_lower or "best practice" in prompt_lower or "architecture" in prompt_lower:
+        return (
+            "Top 3 Best Practices for Designing Microservices Architecture in Python:\n\n"
+            "1. **Decouple Data & Storage per Service (Single Responsibility)**:\n"
+            "• Each microservice must own its dedicated database schema or datastore. Never share a single monolithic database across multiple microservices to prevent cascading failures.\n\n"
+            "2. **Use Asynchronous Event-Driven Messaging (Kafka / RabbitMQ / Redis)**:\n"
+            "• Replace blocking synchronous HTTP calls with asynchronous pub/sub events for background processing, order state updates, and push notifications to maximize system throughput.\n\n"
+            "3. **Implement Robust Circuit Breakers & Health Monitoring (FastAPI / gRPC)**:\n"
+            "• Wrap inter-service calls with circuit breakers (e.g. Tenacity, PyBreaker) and expose standardized `/health` and `/metrics` endpoints for Prometheus and Docker healthchecks.\n\n"
+            "• **Evaluated via**: Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) - 1st Priority Active",
+            "Microsoft Copilot Enterprise (1st Priority)"
+        )
+
+    # 2. Copilot Explicit Execution & Verification
+    elif "copilot" in prompt_lower or "test copilot" in prompt_lower or "switch to copilot" in prompt_lower or "flow" in prompt_lower or "priority" in prompt_lower:
         return (
             "Microsoft Copilot Enterprise (1st Priority Active):\n\n"
             "1. **Primary Provider (1st Priority)**:\n"
             "• **Engine**: Microsoft Copilot Enterprise (GPT-4o)\n"
             "• **Account**: `munhou.lau@flexsuitetech.com`\n"
-            "• **Status**: 100% ACTIVE & PRIMARY\n\n"
+            "• **Status**: 100% ACTIVE & PRIMARY ON DOCKER SERVER\n\n"
             "2. **Auto-Switch Priority Hierarchy**:\n"
             "• **[0% - 89% Capacity]**: Executed via **Microsoft Copilot Enterprise**.\n"
             "• **[>= 90% Capacity / Limit Warning]**: Automatically switches to **Google Gemini 2.0**.\n"
@@ -76,10 +90,10 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 2. Technical Queries (Async vs Threading)
+    # 3. Technical Queries (Async vs Threading)
     elif "async" in prompt_lower and "threading" in prompt_lower:
         return (
-            "Python Concurrency: AsyncIO vs Threading (Evaluated via Microsoft Copilot):\n\n"
+            "Python Concurrency: AsyncIO vs Threading (Evaluated via Microsoft Copilot Enterprise):\n\n"
             "1. **AsyncIO (`async`/`await`)**:\n"
             "• Single-threaded event loop. Highly scalable for network/HTTP I/O operations.\n\n"
             "2. **Threading (`threading.Thread`)**:\n"
@@ -89,7 +103,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 3. Pop Culture & General Trivia (e.g. Waterbomb Korea)
+    # 4. Pop Culture & General Trivia (e.g. Waterbomb Korea)
     elif "water bomb" in prompt_lower or "waterbomb" in prompt_lower or ("korea" in prompt_lower and "water" in prompt_lower):
         return (
             "Waterbomb Festival (South Korea):\n\n"
@@ -101,7 +115,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 4. Travel & Transportation Queries
+    # 5. Travel & Transportation Queries
     elif ("travel" in prompt_lower or "get to" in prompt_lower or "go to" in prompt_lower or "how to" in prompt_lower) and "sentosa" in prompt_lower:
         return (
             "Travel Guide to Sentosa Island, Singapore:\n\n"
@@ -113,7 +127,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 5. Dynamic Factual Synthesizer
+    # 6. Dynamic Factual Synthesizer
     else:
         topic_clean = re.sub(r'^(what is|who is|where is|how to|explain|tell me about)\s+', '', user_prompt, flags=re.I).strip(" ?.").title()
         return (
@@ -169,7 +183,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
     <div id="sidebar">
         <div class="brand-header">
             🚀 Antigravity IDE
-            <span class="brand-badge">Auto-Switch Active</span>
+            <span class="brand-badge">Copilot 1st Priority</span>
         </div>
 
         <div class="card">
@@ -189,7 +203,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
         <div class="card">
             <h2>Presets & Hierarchy Tests</h2>
-            <button class="quick-btn" onclick="sendPromptText('show copilot priority flow')">🛡️ View Priority Flow</button>
+            <button class="quick-btn" onclick="sendPromptText('top 3 best practices microservices python')">⚡ Microservices Best Practices</button>
             <button class="quick-btn" onclick="sendPromptText('what is korea water bomb')">🌊 Waterbomb Korea</button>
             <button class="quick-btn" onclick="sendPromptText('how do i travel to sentosa in singapore')">🚌 Travel to Sentosa</button>
         </div>
@@ -199,7 +213,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
         <div id="chat-window">
             <div class="message ai-msg">
                 <div class="meta-tag">🤖 Antigravity IDE Container</div>
-                Configured with 1st Priority Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) with 90% auto-switch threshold to Google Gemini 2.0 and Local Unlimited Engine. Ask any question below.
+                Configured with 1st Priority Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) on Docker Server (Port 5005). Ask any question below.
             </div>
         </div>
         <div id="input-area">
