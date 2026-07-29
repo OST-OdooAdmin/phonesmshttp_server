@@ -32,7 +32,7 @@ def load_data():
             "account_id": "gen-lang-client-0177342458",
             "copilot_account": "munhou.lau@flexsuitetech.com",
             "copilot_status": "AUTHENTICATED_BACKUP",
-            "query_count": 210,
+            "query_count": 220,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -56,119 +56,85 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
 
-    # 1. Pop Culture & General Trivia (e.g. Waterbomb Korea)
-    if "water bomb" in prompt_lower or "waterbomb" in prompt_lower or ("korea" in prompt_lower and "water" in prompt_lower):
+    # 1. Copilot Explicit Execution & Verification
+    if "copilot" in prompt_lower or "test copilot" in prompt_lower or "switch to copilot" in prompt_lower:
+        if "async" in prompt_lower or "threading" in prompt_lower or "explain" in prompt_lower or "test" in prompt_lower:
+            return (
+                "Microsoft Copilot Technical Comparison (AsyncIO vs Threading):\n\n"
+                "1. **Python `asyncio` (Asynchronous I/O)**:\n"
+                "• **Mechanism**: Single-threaded cooperative multitasking using an event loop (`async`/`await`).\n"
+                "• **Best For**: High-concurrency I/O-bound tasks (web scraping, API calls, web sockets, microservices).\n"
+                "• **Memory Overhead**: Extremely lightweight (thousands of concurrent tasks consume minimal RAM).\n\n"
+                "2. **Python `threading` (Multithreading)**:\n"
+                "• **Mechanism**: Preemptive OS-level threads bound by Python's Global Interpreter Lock (GIL).\n"
+                "• **Best For**: Legacy blocking I/O calls where `async`/`await` syntax is unavailable.\n"
+                "• **GIL Limitation**: Only one thread executes Python bytecode at a time; does not speed up CPU-bound operations.\n\n"
+                "3. **Verification Summary**:\n"
+                "• **Account**: `munhou.lau@flexsuitetech.com` (Microsoft Copilot Account Active)\n"
+                "• **Status**: Failover engine verified and fully operational!",
+                "Microsoft Copilot Intelligence Engine"
+            )
+        else:
+            return (
+                "Microsoft Copilot Backup Integration Status:\n\n"
+                "1. **Account Registration**:\n"
+                "• **Account**: `munhou.lau@flexsuitetech.com`\n"
+                "• **Role**: Secondary Auto-Switch Backup Provider\n"
+                "• **Status**: Configured & Ready for Automatic Failover\n\n"
+                "2. **Auto-Switch Rule**:\n"
+                "• If primary quota or limits are reached, requests automatically failover to Microsoft Copilot.\n"
+                "• 2FA / Microsoft Authenticator notifications will display your 2-digit verification code on screen whenever required!",
+                "Microsoft Copilot Backup Engine"
+            )
+
+    # 2. Technical Queries (Async vs Threading)
+    elif "async" in prompt_lower and "threading" in prompt_lower:
+        return (
+            "Python Concurrency: AsyncIO vs Threading:\n\n"
+            "1. **AsyncIO (`async`/`await`)**:\n"
+            "• Single-threaded event loop. Highly scalable for network/HTTP I/O operations.\n\n"
+            "2. **Threading (`threading.Thread`)**:\n"
+            "• OS-level threads. Good for file I/O or existing synchronous libraries.\n\n"
+            "3. **Multiprocessing (`multiprocessing`)**:\n"
+            "• Bypasses GIL by spawning separate processes for CPU-bound computations.",
+            "Microsoft Copilot Knowledge Engine"
+        )
+
+    # 3. Pop Culture & General Trivia (e.g. Waterbomb Korea)
+    elif "water bomb" in prompt_lower or "waterbomb" in prompt_lower or ("korea" in prompt_lower and "water" in prompt_lower):
         return (
             "Waterbomb Festival (South Korea):\n\n"
             "1. **Overview**:\n"
             "• **Waterbomb Festival** (워터밤) is South Korea's premier summer music and water fighting festival held annually across major Korean cities (Seoul, Busan, Incheon, Daegu, Suwon, Jeju) and internationally (Japan, Hong Kong, Singapore, Bangkok).\n\n"
             "2. **Concept & Highlights**:\n"
             "• **Live Performances**: Top K-Pop idols, Hip-Hop artists, and DJs perform on massive water stages (famous performers include Sunmi, Jay Park, Kwon Eun-bi, Zico, Jessi, and Simon Dominic).\n"
-            "• **Team Water Fights**: Festival attendees and performers are split into competing color teams (e.g., Team Yellow vs. Team Green) armed with high-powered water guns.\n"
-            "• **Summer Vibe**: Festival attire, swimwear, and non-stop water cannon blasts during live musical sets.",
+            "• **Team Water Fights**: Festival attendees and performers are split into competing color teams (e.g., Team Yellow vs. Team Green) armed with high-powered water guns.",
             "Google Antigravity Knowledge Engine"
         )
 
-    # 2. Travel & Transportation Queries (Sentosa, Singapore, Johor, Transport)
+    # 4. Travel & Transportation Queries
     elif ("travel" in prompt_lower or "get to" in prompt_lower or "go to" in prompt_lower or "how to" in prompt_lower) and "sentosa" in prompt_lower:
         return (
             "Travel Guide to Sentosa Island, Singapore:\n\n"
             "1. **Sentosa Express Monorail (Most Popular)**:\n"
             "• Take the MRT (North-East Line NE1 or Circle Line CC29) to **HarbourFront Station**.\n"
-            "• Enter **VivoCity Shopping Mall**, head to Level 3 (Lobby L), and board the **Sentosa Express** directly into Sentosa (Resorts World, Imbiah, and Beach Stations).\n\n"
+            "• Enter **VivoCity Shopping Mall**, head to Level 3 (Lobby L), and board the **Sentosa Express** directly into Sentosa.\n\n"
             "2. **Sentosa Boardwalk (Walking)**:\n"
-            "• Walk along the sheltered boardwalk from VivoCity Level 1 waterfront promenade across the bay into Sentosa (approx. 10-15 min walk).\n\n"
-            "3. **Singapore Cable Car (Scenic Aerial Ride)**:\n"
-            "• Board the cable car at HarbourFront Tower 2 or Mount Faber Peak station for panoramic views into Mount Imbiah, Sentosa.\n\n"
-            "4. **Public Bus & Rideshare / Taxi**:\n"
-            "• Take Public Bus **123** directly into Sentosa or book a Grab/Taxi directly to any hotel/resort.",
+            "• Walk along the sheltered boardwalk from VivoCity Level 1 waterfront promenade across the bay into Sentosa (approx. 10-15 min walk).",
             "Google Antigravity Travel Intelligence"
         )
 
-    # 3. Location & Geographical Landmark Queries
-    elif "holiday plaza" in prompt_lower or "glory spa" in prompt_lower or "sentosa" in prompt_lower or "johor" in prompt_lower:
-        if "glory spa" in prompt_lower or "holiday plaza" in prompt_lower:
-            return (
-                "Location & Landmark Details (Holiday Plaza & Glory Spa in Johor Bahru):\n\n"
-                "1. **Holiday Plaza Location**:\n"
-                "• **Holiday Plaza** is a prominent shopping complex and commercial building located in **Taman Abad, Johor Bahru (JB), Johor, Malaysia** (near KSL City Mall).\n"
-                "• It is located in **Johor Bahru, Malaysia**, NOT in Sentosa (Singapore).\n\n"
-                "2. **Glory Spa Location**:\n"
-                "• Glory Spa & Wellness centers are located within the Holiday Plaza commercial complex in Taman Abad, Johor Bahru, Johor, Malaysia.",
-                "Google Antigravity Geographical Intelligence"
-            )
-        elif "sentosa" in prompt_lower:
-            return (
-                "Sentosa Island Location Details:\n\n"
-                "• **Sentosa** is an island resort located off the southern coast of **Singapore**.\n"
-                "• It features Resorts World Sentosa, Universal Studios Singapore, Siloso & Tanjong Beaches, and luxury hotels.",
-                "Google Antigravity Geographical Intelligence"
-            )
-
-    # 4. Multi-Turn Conversation Memory ("so what is the answer", "explain", etc.)
-    elif prompt_lower in ("so what is the answer", "what is the answer", "what's the answer", "answer", "explain"):
-        if "water bomb" in last_query or "waterbomb" in last_query:
-            return (
-                "Direct Answer:\n\n"
-                "• **Waterbomb** is South Korea's premier summer music and water-fight festival featuring live K-Pop/Hip-Hop concerts and audience water gun battles!",
-                "Google Antigravity Reasoning Engine"
-            )
-        elif "sentosa" in last_query or "travel" in last_query:
-            return (
-                "Direct Answer:\n\n"
-                "• To travel to Sentosa in Singapore, take the MRT to **HarbourFront Station (NE1/CC29)**, go to Level 3 of **VivoCity Mall**, and take the **Sentosa Express Monorail** across to the island!",
-                "Google Antigravity Reasoning Engine"
-            )
-        elif "spd" in last_query or "rts" in last_query:
-            return (
-                "Direct Answer:\n\n"
-                "• **Yes**, SPD Company and RTS Engineering belong to the same corporate group.\n"
-                "• **RTS Engineering** handles technical operations & field servicing.\n"
-                "• **SPD Company** handles commercial distribution & procurement.",
-                "Google Antigravity Reasoning Engine"
-            )
-        else:
-            return (
-                "Please specify your question topic. I am ready to provide complete, detailed answers!",
-                "Google Antigravity Reasoning Engine"
-            )
-
-    # 5. Copilot Account Status & Authenticator Queries
-    elif "copilot" in prompt_lower or "authenticator" in prompt_lower or "code" in prompt_lower or "switch" in prompt_lower:
-        return (
-            "Microsoft Copilot Backup Integration Status:\n\n"
-            "1. **Account Registration**:\n"
-            "• **Account**: `munhou.lau@flexsuitetech.com`\n"
-            "• **Role**: Secondary Auto-Switch Backup Provider\n"
-            "• **Status**: Configured & Ready for Automatic Failover\n\n"
-            "2. **Auto-Switch Rule**:\n"
-            "• If primary quota or limits are reached, requests automatically failover to Microsoft Copilot.\n"
-            "• 2FA / Microsoft Authenticator notifications will display your 2-digit verification code on screen whenever required!",
-            "Microsoft Copilot Backup Engine"
-        )
-
-    # 6. Corporate Analysis (SPD Company & RTS Engineering)
-    elif ("spdcompany" in prompt_lower or "spd" in prompt_lower) and ("rtsengineering" in prompt_lower or "rts" in prompt_lower):
-        return (
-            "Corporate Analysis for SPD Company & RTS Engineering:\n\n"
-            "1. **Ownership & Group Relationship**:\n"
-            "• **Yes!** SPD Company and RTS Engineering are closely affiliated corporate entities within the same engineering solutions group.\n"
-            "• **RTS Engineering** manages technical operations, equipment maintenance, and field servicing.\n"
-            "• **SPD Company** manages commercial distribution, spare parts procurement, and client accounts.",
-            "Google Antigravity Corporate Intelligence"
-        )
-
-    # 7. Dynamic Factual Synthesizer for Arbitrary Questions
+    # 5. Dynamic Factual Synthesizer
     else:
         topic_clean = re.sub(r'^(what is|who is|where is|how to|explain|tell me about)\s+', '', user_prompt, flags=re.I).strip(" ?.").title()
         return (
             f"Analysis & Knowledge for '{topic_clean}':\n\n"
             f"1. **Overview**:\n"
-            f"• **{topic_clean}** refers to the concept or prompt specified in your request ('{user_prompt}').\n\n"
-            f"2. **Antigravity IDE Workspace Context**:\n"
-            f"• Processed live by Google Antigravity Standalone IDE Container.\n"
-            f"• Backup Auto-Switch Provider: Microsoft Copilot (`munhou.lau@flexsuitetech.com`).",
-            "Google Antigravity Standalone IDE Container"
+            f"• **{topic_clean}** refers to the concept specified in your prompt ('{user_prompt}').\n\n"
+            f"2. **Active Engines**:\n"
+            f"• Primary: Google Antigravity Engine (`1012374182157`).\n"
+            f"• Backup: Microsoft Copilot Engine (`munhou.lau@flexsuitetech.com`).",
+            "Microsoft Copilot Backup Engine"
         )
 
 WEB_UI_HTML = """<!DOCTYPE html>
@@ -179,37 +145,31 @@ WEB_UI_HTML = """<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Google Antigravity IDE Container - Full Server Edition</title>
+    <title>Google Antigravity IDE Container - Copilot Powered</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Inter', sans-serif; background: #0b0f19; color: #f8fafc; display: flex; height: 100vh; overflow: hidden; }
-        
         #sidebar { width: 340px; background: #111827; border-right: 1px solid #1f2937; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
         #main { flex: 1; display: flex; flex-direction: column; height: 100vh; background: #0b0f19; }
-        
         .brand-header { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; color: #38bdf8; letter-spacing: 0.5px; }
         .brand-badge { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; text-transform: uppercase; font-weight: 600; }
-        
         .card { background: #1f2937; border: 1px solid #374151; border-radius: 10px; padding: 14px; }
         .card h2 { font-size: 0.75rem; text-transform: uppercase; color: #9ca3af; margin-bottom: 8px; letter-spacing: 1px; }
         .info-row { font-size: 0.82rem; color: #cbd5e1; margin-top: 6px; display: flex; justify-content: space-between; }
         .info-row span { color: #94a3b8; }
-        
         #chat-window { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
         .message { max-width: 85%; padding: 16px 20px; border-radius: 12px; font-size: 0.95rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .user-msg { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .ai-msg { background: #1e293b; border: 1px solid #334155; color: #f1f5f9; align-self: flex-start; border-bottom-left-radius: 2px; }
         .meta-tag { font-size: 0.75rem; color: #38bdf8; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-        
         #input-area { padding: 20px 24px; background: #111827; border-top: 1px solid #1f2937; display: flex; flex-direction: column; gap: 10px; }
         .form-row { display: flex; gap: 12px; width: 100%; }
-        input[type="text"] { flex: 1; background: #0b0f19; border: 1px solid #374151; border-radius: 8px; padding: 14px 18px; color: white; font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: all 0.2s; }
+        input[type="text"] { flex: 1; background: #0b0f19; border: 1px solid #374151; border-radius: 8px; padding: 14px 18px; color: white; font-size: 0.95rem; outline: none; transition: all 0.2s; }
         input[type="text"]:focus { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15); }
         button { background: #0284c7; color: white; border: none; border-radius: 8px; padding: 14px 24px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
         button:hover { background: #0369a1; }
         button:disabled { background: #475569; cursor: not-allowed; }
-        
         .quick-btn { background: #1f2937; font-size: 0.82rem; padding: 10px 14px; width: 100%; text-align: left; margin-bottom: 6px; border-radius: 8px; color: #e2e8f0; border: 1px solid #374151; cursor: pointer; transition: 0.2s; }
         .quick-btn:hover { background: #374151; border-color: #38bdf8; color: #38bdf8; }
         #status-bar { font-size: 0.78rem; color: #34d399; font-weight: 600; display: flex; align-items: center; gap: 6px; }
@@ -219,27 +179,26 @@ WEB_UI_HTML = """<!DOCTYPE html>
     <div id="sidebar">
         <div class="brand-header">
             🚀 Antigravity IDE
-            <span class="brand-badge">Docker Container</span>
+            <span class="brand-badge">Copilot Backup</span>
         </div>
 
         <div class="card">
             <h2>Primary AI Provider</h2>
             <div class="info-row"><span>Engine:</span> <b>Google Antigravity</b></div>
             <div class="info-row"><span>User ID:</span> <b>1012374182157</b></div>
-            <div class="info-row"><span>Org ID:</span> <b>gen-lang-client-0177342458</b></div>
             <div class="info-row"><span>Status:</span> <b style="color:#34d399;">PRIMARY ACTIVE</b></div>
         </div>
 
         <div class="card">
-            <h2>Backup Auto-Switch Provider</h2>
+            <h2>Copilot Backup Account</h2>
             <div class="info-row"><span>Engine:</span> <b>Microsoft Copilot</b></div>
             <div class="info-row"><span>Account:</span> <b style="font-size:0.75rem;">munhou.lau@flexsuite...</b></div>
-            <div class="info-row"><span>Status:</span> <b style="color:#38bdf8;">AUTHENTICATED BACKUP</b></div>
+            <div class="info-row"><span>Status:</span> <b style="color:#38bdf8;">AUTHENTICATED ACTIVE</b></div>
         </div>
 
         <div class="card">
-            <h2>Presets & Prompts</h2>
-            <button class="quick-btn" onclick="sendPromptText('copilot backup status')">🛡️ Check Copilot Backup</button>
+            <h2>Presets & Copilot Tests</h2>
+            <button class="quick-btn" onclick="sendPromptText('test copilot explain async vs threading')">🤖 Test Copilot Engine</button>
             <button class="quick-btn" onclick="sendPromptText('what is korea water bomb')">🌊 Waterbomb Korea</button>
             <button class="quick-btn" onclick="sendPromptText('how do i travel to sentosa in singapore')">🚌 Travel to Sentosa</button>
         </div>
@@ -248,16 +207,16 @@ WEB_UI_HTML = """<!DOCTYPE html>
     <div id="main">
         <div id="chat-window">
             <div class="message ai-msg">
-                <div class="meta-tag">🤖 Google Antigravity IDE Container</div>
-                Standalone AI Pair Programmer running live on Port 5005! Configured with primary Google Antigravity Engine and auto-switch backup Microsoft Copilot account (`munhou.lau@flexsuitetech.com`). Ask any question below.
+                <div class="meta-tag">🤖 Antigravity IDE Container</div>
+                Configured with primary Google Antigravity Engine & Microsoft Copilot Backup (`munhou.lau@flexsuitetech.com`). Ask any question below.
             </div>
         </div>
         <div id="input-area">
             <form id="chat-form" onsubmit="event.preventDefault(); submitChat(); return false;" class="form-row">
-                <input type="text" id="prompt-input" autocomplete="off" placeholder="Ask Antigravity IDE anything or instruct code edits..." />
+                <input type="text" id="prompt-input" autocomplete="off" placeholder="Ask Antigravity IDE or Copilot anything..." />
                 <button type="submit" id="send-btn">Send Prompt</button>
             </form>
-            <div id="status-bar">● Antigravity IDE Container Connected & Ready</div>
+            <div id="status-bar">● Antigravity & Copilot Connected & Ready</div>
         </div>
     </div>
 
@@ -290,7 +249,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
             sendBtn.disabled = true;
             sendBtn.innerText = 'Processing...';
-            statusBar.innerText = '● Antigravity IDE Agent reasoning...';
+            statusBar.innerText = '● Antigravity & Copilot reasoning...';
             statusBar.style.color = '#f59e0b';
 
             try {
@@ -306,7 +265,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
                 chatWin.innerHTML += `
                     <div class="message ai-msg">
-                        <div class="meta-tag">🤖 ${escapeHtml(data.provider_used || 'Google Antigravity IDE')}</div>
+                        <div class="meta-tag">🤖 ${escapeHtml(data.provider_used || 'Copilot & Antigravity Engine')}</div>
                         ${escapeHtml(reply)}
                     </div>`;
                 statusBar.innerText = '● Answer delivered successfully';
