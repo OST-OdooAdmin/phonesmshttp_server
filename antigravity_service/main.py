@@ -9,7 +9,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 DATA_FILE = "/app/antigravity_data.json"
 
-# Default API keys for live Gemini AI generation
 DEFAULT_KEYS = [
     os.environ.get("GEMINI_API_KEY", "").strip(),
 ]
@@ -27,7 +26,7 @@ def load_data():
             "provider_label": "Google Antigravity Universal Engine (Full LLM Edition)",
             "user_id": "1012374182157",
             "account_id": "gen-lang-client-0177342458",
-            "query_count": 100,
+            "query_count": 110,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -42,13 +41,8 @@ def save_data(data):
         pass
 
 def call_live_gemini_api(user_prompt, conversation_history=[]):
-    """
-    Calls Google's Live Generative AI API (Gemini 2.0 Flash / Pro).
-    Returns the exact same rich, fluid, natural AI answers as the IDE assistant on your laptop!
-    """
     data = load_data()
     user_key = data.get("settings", {}).get("gemini_api_key", "").strip()
-    
     keys_to_try = [k for k in [user_key] + DEFAULT_KEYS if k]
 
     system_instruction = (
@@ -58,7 +52,6 @@ def call_live_gemini_api(user_prompt, conversation_history=[]):
     )
 
     contents = []
-    # Include up to 3 previous history turns for context (handles follow-up queries like 'so what is the answer')
     for h in conversation_history[-3:]:
         contents.append({"role": "user", "parts": [{"text": h.get("user_prompt", "")}]})
         contents.append({"role": "model", "parts": [{"text": h.get("ai_response", "")}]})
@@ -101,21 +94,14 @@ def call_live_gemini_api(user_prompt, conversation_history=[]):
                 print(f"[Gemini API Call Exception - {model}]: {e}")
                 continue
 
-    # Fallback to Local Knowledge Engine if no API key is provided
     return local_ai_knowledge_engine(user_prompt, conversation_history)
 
 
 def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
-    """
-    Comprehensive Local Knowledge Engine with Conversation Memory.
-    Generates rich, detailed, natural responses without rigid template headers.
-    """
     prompt_lower = user_prompt.lower().strip()
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
-    last_response = last_turn.get("ai_response", "")
 
-    # Follow-up Queries ("so what is the answer", "what do you mean", "explain more", etc.)
     if prompt_lower in ("so what is the answer", "what is the answer", "what's the answer", "answer", "explain"):
         if "spd" in last_query or "rts" in last_query:
             return (
@@ -140,7 +126,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
                 "Google Antigravity Reasoning Engine"
             )
 
-    # Version / Installation Queries ("which version is this", "what version", etc.)
     elif "version" in prompt_lower or "which version" in prompt_lower:
         return (
             "System Version & Server Environment Details:\n\n"
@@ -157,7 +142,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity System Intelligence"
         )
 
-    # Docker Inter-Container & Odoo Link Queries
     elif "docker" in prompt_lower or "link" in prompt_lower or "odoo container" in prompt_lower or "current server" in prompt_lower or "microservice" in prompt_lower:
         return (
             "Server Architecture & Inter-Container Connectivity:\n\n"
@@ -171,7 +155,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity System Architecture"
         )
 
-    # Corporate Relationship Queries (SPD Company & RTS Engineering)
     elif ("spdcompany" in prompt_lower or "spd" in prompt_lower) and ("rtsengineering" in prompt_lower or "rts" in prompt_lower):
         return (
             "Corporate Analysis for SPD Company & RTS Engineering:\n\n"
@@ -201,7 +184,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity Corporate Intelligence"
         )
 
-    # Swimming Pool Queries
     elif "yio chu kang" in prompt_lower or "swimming" in prompt_lower or "pool" in prompt_lower or "activesg" in prompt_lower:
         return (
             "Yio Chu Kang Swimming Complex (SportSG ActiveSG Facility):\n\n"
@@ -214,7 +196,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity Facility Assistant"
         )
 
-    # Weather Queries
     elif "rain" in prompt_lower or "weather" in prompt_lower or "climate" in prompt_lower or "forecast" in prompt_lower:
         return (
             "Singapore Weather Forecast (Meteorological Service Singapore):\n\n"
@@ -226,7 +207,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity Weather Service"
         )
 
-    # Earnings & Economy Queries
     elif "earning" in prompt_lower or "salary" in prompt_lower or "income" in prompt_lower or "pay" in prompt_lower or "wage" in prompt_lower:
         return (
             "Average & Median Earnings in Singapore (2025 / 2026 Ministry of Manpower):\n\n"
@@ -240,7 +220,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity Economic Intelligence"
         )
 
-    # Human Reproduction & Biology Queries
     elif "male" in prompt_lower and ("female" in prompt_lower or "bady" in prompt_lower or "baby" in prompt_lower or "successory" in prompt_lower or "son" in prompt_lower):
         return (
             "Human Reproduction & Gender Determination:\n\n"
@@ -253,7 +232,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Google Antigravity Biological Intelligence"
         )
 
-    # Odoo Studio Application Requests
     elif "build" in prompt_lower or "create app" in prompt_lower or "module" in prompt_lower or "odoo" in prompt_lower:
         topic_clean = user_prompt.strip()
         app_tech = "x_" + re.sub(r'[^a-z0-9_]', '', user_prompt.lower().replace(" ", "_"))[:20]
@@ -268,7 +246,6 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "Odoo 19 AI Studio Builder Engine"
         )
 
-    # General Dynamic Fallback Reasoner
     else:
         topic_clean = user_prompt.strip()
         return (
@@ -287,6 +264,9 @@ WEB_UI_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Google Antigravity AI Portal - Full Server Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -303,15 +283,17 @@ WEB_UI_HTML = """<!DOCTYPE html>
         .user-msg { background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .ai-msg { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; align-self: flex-start; border-bottom-left-radius: 2px; }
         .meta-tag { font-size: 0.75rem; color: #38bdf8; margin-bottom: 6px; font-weight: 600; }
-        #input-area { padding: 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; gap: 10px; }
+        #input-area { padding: 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; flex-direction: column; gap: 8px; }
+        .form-row { display: flex; gap: 10px; width: 100%; }
         input[type="text"] { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 18px; color: white; font-size: 0.95rem; outline: none; }
         input[type="text"]:focus { border-color: #38bdf8; }
-        button { background: #0284c7; color: white; border: none; border-radius: 8px; padding: 14px 24px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button { background: #0284c7; color: white; border: none; border-radius: 8px; padding: 14px 24px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
         button:hover { background: #0369a1; }
         button:disabled { background: #475569; cursor: not-allowed; }
         .quick-btn { background: #334155; font-size: 0.8rem; padding: 10px 12px; width: 100%; text-align: left; margin-bottom: 6px; border-radius: 6px; color: #e2e8f0; border: none; cursor: pointer; }
         .quick-btn:hover { background: #475569; }
         .key-input { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px; color: white; font-size: 0.8rem; margin-top: 5px; }
+        #status-bar { font-size: 0.75rem; color: #34d399; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -333,10 +315,10 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
         <div class="card">
             <h2>Preset Prompts</h2>
-            <button class="quick-btn" onclick="sendPrompt('which version is this')">ℹ️ Check Version</button>
-            <button class="quick-btn" onclick="sendPrompt('so what is the answer')">💡 Follow-up Answer</button>
-            <button class="quick-btn" onclick="sendPrompt('is spdcompany belong or related to rtsengineering')">🏢 SPD & RTS Relationship</button>
-            <button class="quick-btn" onclick="sendPrompt('docker antigravity in this server link to docker odoo container')">🐳 Docker Container Link</button>
+            <button class="quick-btn" onclick="sendPromptText('which version is this')">ℹ️ Check Version</button>
+            <button class="quick-btn" onclick="sendPromptText('so what is the answer')">💡 Follow-up Answer</button>
+            <button class="quick-btn" onclick="sendPromptText('is spdcompany belong or related to rtsengineering')">🏢 SPD & RTS Relationship</button>
+            <button class="quick-btn" onclick="sendPromptText('docker antigravity in this server link to docker odoo container')">🐳 Docker Container Link</button>
         </div>
     </div>
 
@@ -344,20 +326,23 @@ WEB_UI_HTML = """<!DOCTYPE html>
         <div id="chat-window">
             <div class="message ai-msg">
                 <div class="meta-tag">🤖 Google Antigravity Portal</div>
-                Full LLM Server Edition running live on Port 5005 & integrated with Odoo 19! Type any question or follow-up prompt below.
+                Full LLM Server Edition running live on Port 5005 & integrated with Odoo 19! Enter any question or follow-up prompt below.
             </div>
         </div>
         <div id="input-area">
-            <input type="text" id="prompt-input" placeholder="Type your instruction or question..." onkeypress="handleKeyPress(event)">
-            <button id="send-btn" onclick="sendCurrentPrompt()">Send Prompt</button>
+            <form id="chat-form" onsubmit="event.preventDefault(); submitChat(); return false;" class="form-row">
+                <input type="text" id="prompt-input" autocomplete="off" placeholder="Type your instruction or question..." />
+                <button type="submit" id="send-btn">Send Prompt</button>
+            </form>
+            <div id="status-bar">● Server Connected & Ready</div>
         </div>
     </div>
 
     <script>
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') {
-                sendCurrentPrompt();
-            }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerText = text;
+            return div.innerHTML;
         }
 
         async function saveApiKey(keyVal) {
@@ -373,19 +358,30 @@ WEB_UI_HTML = """<!DOCTYPE html>
             }
         }
 
-        async function sendPrompt(text) {
+        function submitChat() {
+            const input = document.getElementById('prompt-input');
+            if (input && input.value) {
+                const val = input.value;
+                input.value = '';
+                sendPromptText(val);
+            }
+        }
+
+        async function sendPromptText(text) {
             if (!text || !text.trim()) return;
             const cleanText = text.trim();
 
             const chatWin = document.getElementById('chat-window');
             const sendBtn = document.getElementById('send-btn');
-            const promptInput = document.getElementById('prompt-input');
+            const statusBar = document.getElementById('status-bar');
 
-            chatWin.innerHTML += `<div class="message user-msg">${cleanText}</div>`;
+            chatWin.innerHTML += `<div class="message user-msg">${escapeHtml(cleanText)}</div>`;
             chatWin.scrollTop = chatWin.scrollHeight;
 
             sendBtn.disabled = true;
             sendBtn.innerText = 'Processing...';
+            statusBar.innerText = '● Processing query on Antigravity server...';
+            statusBar.style.color = '#f59e0b';
 
             try {
                 const res = await fetch('/chat', {
@@ -400,23 +396,19 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
                 chatWin.innerHTML += `
                     <div class="message ai-msg">
-                        <div class="meta-tag">🤖 ${data.provider_used || 'Google Antigravity Engine'}</div>
-                        ${reply}
+                        <div class="meta-tag">🤖 ${escapeHtml(data.provider_used || 'Google Antigravity Engine')}</div>
+                        ${escapeHtml(reply)}
                     </div>`;
+                statusBar.innerText = '● Answer delivered successfully';
+                statusBar.style.color = '#34d399';
             } catch (e) {
-                chatWin.innerHTML += `<div class="message ai-msg" style="color: #f87171;">⚠️ Connection error. Please try again.</div>`;
+                chatWin.innerHTML += `<div class="message ai-msg" style="color: #f87171;">⚠️ Connection error: ${escapeHtml(e.message)}. Please try again.</div>`;
+                statusBar.innerText = '● Connection error';
+                statusBar.style.color = '#ef4444';
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.innerText = 'Send Prompt';
-                promptInput.value = '';
                 chatWin.scrollTop = chatWin.scrollHeight;
-            }
-        }
-
-        function sendCurrentPrompt() {
-            const input = document.getElementById('prompt-input');
-            if (input && input.value) {
-                sendPrompt(input.value);
             }
         }
     </script>
@@ -436,6 +428,9 @@ class AntigravityHandler(BaseHTTPRequestHandler):
     def _send_html(self, html_content, code=200):
         self.send_response(code)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(html_content.encode("utf-8"))
@@ -493,7 +488,6 @@ class AntigravityHandler(BaseHTTPRequestHandler):
         data["settings"]["query_count"] = data["settings"].get("query_count", 0) + 1
         current_count = data["settings"]["query_count"]
 
-        # Call Live Gemini LLM or Local Reasoning Engine with conversation memory
         answer, provider_used = call_live_gemini_api(user_prompt, data.get("history", []))
         resp_formatted = f"🤖 Jemi ({provider_used}):\n\n{answer}"
 
