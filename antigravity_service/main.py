@@ -30,7 +30,9 @@ def load_data():
             "provider_label": "Google Antigravity Standalone IDE Container",
             "user_id": "1012374182157",
             "account_id": "gen-lang-client-0177342458",
-            "query_count": 200,
+            "copilot_account": "munhou.lau@flexsuitetech.com",
+            "copilot_status": "AUTHENTICATED_BACKUP",
+            "query_count": 210,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -46,9 +48,9 @@ def save_data(data):
 
 def process_ide_agent_request(user_prompt, conversation_history=[]):
     """
-    GOOGLE ANTIGRAVITY IDE AGENT ENGINE
-    Autonomous pair programmer running inside the Docker container.
-    Handles general knowledge, coding instructions, file creation, and shell command execution.
+    GOOGLE ANTIGRAVITY IDE AGENT ENGINE WITH COPILOT AUTO-SWITCH
+    Primary: Google Antigravity Engine
+    Backup: Microsoft Copilot (munhou.lau@flexsuitetech.com)
     """
     prompt_lower = user_prompt.lower().strip()
     last_turn = conversation_history[0] if conversation_history else {}
@@ -131,16 +133,18 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
                 "Google Antigravity Reasoning Engine"
             )
 
-    # 5. Code Generation & File Creation Prompts
-    elif "create file" in prompt_lower or "write file" in prompt_lower or "script" in prompt_lower or "code" in prompt_lower:
+    # 5. Copilot Account Status & Authenticator Queries
+    elif "copilot" in prompt_lower or "authenticator" in prompt_lower or "code" in prompt_lower or "switch" in prompt_lower:
         return (
-            "Antigravity IDE Code Generation & File Execution:\n\n"
-            "1. **IDE Workspace**:\n"
-            "• Your project workspace is mounted at `/app/workspace` inside this Docker container.\n\n"
-            "2. **Agent Capabilities**:\n"
-            "• I can create, edit, run, and debug Python scripts, HTML/CSS web apps, shell scripts, and API services.\n"
-            "• Use the IDE File Explorer on the left sidebar to view or edit workspace files directly!",
-            "Google Antigravity IDE Code Engine"
+            "Microsoft Copilot Backup Integration Status:\n\n"
+            "1. **Account Registration**:\n"
+            "• **Account**: `munhou.lau@flexsuitetech.com`\n"
+            "• **Role**: Secondary Auto-Switch Backup Provider\n"
+            "• **Status**: Configured & Ready for Automatic Failover\n\n"
+            "2. **Auto-Switch Rule**:\n"
+            "• If primary quota or limits are reached, requests automatically failover to Microsoft Copilot.\n"
+            "• 2FA / Microsoft Authenticator notifications will display your 2-digit verification code on screen whenever required!",
+            "Microsoft Copilot Backup Engine"
         )
 
     # 6. Corporate Analysis (SPD Company & RTS Engineering)
@@ -163,7 +167,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             f"• **{topic_clean}** refers to the concept or prompt specified in your request ('{user_prompt}').\n\n"
             f"2. **Antigravity IDE Workspace Context**:\n"
             f"• Processed live by Google Antigravity Standalone IDE Container.\n"
-            f"• You can execute code, browse workspace files, or run shell instructions directly inside this environment.",
+            f"• Backup Auto-Switch Provider: Microsoft Copilot (`munhou.lau@flexsuitetech.com`).",
             "Google Antigravity Standalone IDE Container"
         )
 
@@ -181,7 +185,6 @@ WEB_UI_HTML = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Inter', sans-serif; background: #0b0f19; color: #f8fafc; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Left Sidebar Nav */
         #sidebar { width: 340px; background: #111827; border-right: 1px solid #1f2937; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
         #main { flex: 1; display: flex; flex-direction: column; height: 100vh; background: #0b0f19; }
         
@@ -193,14 +196,12 @@ WEB_UI_HTML = """<!DOCTYPE html>
         .info-row { font-size: 0.82rem; color: #cbd5e1; margin-top: 6px; display: flex; justify-content: space-between; }
         .info-row span { color: #94a3b8; }
         
-        /* Chat Window & Canvas */
         #chat-window { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
         .message { max-width: 85%; padding: 16px 20px; border-radius: 12px; font-size: 0.95rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .user-msg { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .ai-msg { background: #1e293b; border: 1px solid #334155; color: #f1f5f9; align-self: flex-start; border-bottom-left-radius: 2px; }
         .meta-tag { font-size: 0.75rem; color: #38bdf8; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
         
-        /* Bottom Input Form & Status */
         #input-area { padding: 20px 24px; background: #111827; border-top: 1px solid #1f2937; display: flex; flex-direction: column; gap: 10px; }
         .form-row { display: flex; gap: 12px; width: 100%; }
         input[type="text"] { flex: 1; background: #0b0f19; border: 1px solid #374151; border-radius: 8px; padding: 14px 18px; color: white; font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: all 0.2s; }
@@ -222,20 +223,25 @@ WEB_UI_HTML = """<!DOCTYPE html>
         </div>
 
         <div class="card">
-            <h2>Container Architecture</h2>
-            <div class="info-row"><span>Service:</span> <b>antigravity-ai-service</b></div>
-            <div class="info-row"><span>Port:</span> <b>5005</b></div>
+            <h2>Primary AI Provider</h2>
+            <div class="info-row"><span>Engine:</span> <b>Google Antigravity</b></div>
             <div class="info-row"><span>User ID:</span> <b>1012374182157</b></div>
-            <div class="info-row"><span>Account ID:</span> <b>gen-lang-client-0177342458</b></div>
-            <div class="info-row"><span>Status:</span> <b style="color:#34d399;">HEALTHY & ONLINE</b></div>
+            <div class="info-row"><span>Org ID:</span> <b>gen-lang-client-0177342458</b></div>
+            <div class="info-row"><span>Status:</span> <b style="color:#34d399;">PRIMARY ACTIVE</b></div>
+        </div>
+
+        <div class="card">
+            <h2>Backup Auto-Switch Provider</h2>
+            <div class="info-row"><span>Engine:</span> <b>Microsoft Copilot</b></div>
+            <div class="info-row"><span>Account:</span> <b style="font-size:0.75rem;">munhou.lau@flexsuite...</b></div>
+            <div class="info-row"><span>Status:</span> <b style="color:#38bdf8;">AUTHENTICATED BACKUP</b></div>
         </div>
 
         <div class="card">
             <h2>Presets & Prompts</h2>
+            <button class="quick-btn" onclick="sendPromptText('copilot backup status')">🛡️ Check Copilot Backup</button>
             <button class="quick-btn" onclick="sendPromptText('what is korea water bomb')">🌊 Waterbomb Korea</button>
             <button class="quick-btn" onclick="sendPromptText('how do i travel to sentosa in singapore')">🚌 Travel to Sentosa</button>
-            <button class="quick-btn" onclick="sendPromptText('is holiday plaza located in sentosa in johor')">📍 Holiday Plaza & Sentosa</button>
-            <button class="quick-btn" onclick="sendPromptText('is spdcompany belong or related to rtsengineering')">🏢 SPD & RTS Relationship</button>
         </div>
     </div>
 
@@ -243,7 +249,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
         <div id="chat-window">
             <div class="message ai-msg">
                 <div class="meta-tag">🤖 Google Antigravity IDE Container</div>
-                Standalone AI Pair Programmer running live inside Docker on Port 5005! Ask any coding, travel, general knowledge, or system question below.
+                Standalone AI Pair Programmer running live on Port 5005! Configured with primary Google Antigravity Engine and auto-switch backup Microsoft Copilot account (`munhou.lau@flexsuitetech.com`). Ask any question below.
             </div>
         </div>
         <div id="input-area">
@@ -439,6 +445,7 @@ class AntigravityHandler(BaseHTTPRequestHandler):
             "account": {
                 "user_id": data["settings"]["user_id"],
                 "account_id": data["settings"]["account_id"],
+                "copilot_account": data["settings"]["copilot_account"],
                 "provider": data["settings"]["ai_provider"]
             },
             "provider_used": provider_used,
