@@ -1,14 +1,18 @@
-import odoo
-from odoo import api, SUPERUSER_ID
+import json
+import urllib.request
 
-odoo.tools.config.parse_config(["--db_host=db", "--db_user=odoo", "--db_password=odoo", "-d", "DreamHRsolution"])
-registry = odoo.registry("DreamHRsolution")
+url = "http://localhost:5005/chat"
 
-user_question = "is spdcompany belong or related to rtsengineering"
+prompts = [
+    "is spdcompany belong or related to rtsengineering",
+    "are u link to odoo in current server in docker?",
+    "is antigravity full version down here"
+]
 
-with registry.cursor() as cr:
-    env = api.Environment(cr, SUPERUSER_ID, {})
-    res = env["res.config.settings"].action_chat_with_gemini(user_question)
-    print("=================== JEMI LIVE RESPONSE POSTED TO ODOO CHATTER ===================")
-    print(res.get("response", ""))
-    print("=================================================================================")
+for prompt in prompts:
+    print(f"\n=================== QUERY: '{prompt}' ===================")
+    payload = json.dumps({"prompt": prompt}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        print(data.get("response", ""))
