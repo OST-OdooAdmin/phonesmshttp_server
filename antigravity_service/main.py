@@ -35,7 +35,7 @@ def load_data():
             "switch_threshold": "90%",
             "secondary_provider": "Google Gemini 2.0 (2nd Priority)",
             "tertiary_provider": "Local Antigravity Universal Engine (Unlimited Fallback)",
-            "query_count": 260,
+            "query_count": 270,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -60,8 +60,27 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
 
-    # 1. Microservices Best Practices Query
-    if "microservice" in prompt_lower or "best practice" in prompt_lower or "architecture" in prompt_lower:
+    # 1. Blockbuster Movies in China Query
+    if "movie" in prompt_lower or "blockbuster" in prompt_lower or "blockblaster" in prompt_lower or "china" in prompt_lower or "box office" in prompt_lower:
+        return (
+            "Latest Blockbuster Movies in China (Current Box Office Highlights):\n\n"
+            "1. **Successor (抓娃娃 - Zhuā Wáwa)**:\n"
+            "• **Genre**: Comedy / Family Drama\n"
+            "• **Starring**: Shen Teng (沈腾) and Ma Li (马丽)\n"
+            "• **Box Office Performance**: Dominating the Chinese summer box office with over $400 Million USD (¥3 Billion RMB), making it the #1 highest-grossing comedy blockbuster in China this season!\n\n"
+            "2. **Decoded (解密 - Jiě Mì)**:\n"
+            "• **Genre**: Period Thriller / Cryptography Spy Drama\n"
+            "• **Director**: Chen Sicheng (Detective Chinatown series)\n"
+            "• **Highlights**: Adapted from Mai Jia's bestselling novel, featuring IMAX visuals and stellar IMAX cinematography.\n\n"
+            "3. **Deadpool & Wolverine (死侍与金刚狼)**:\n"
+            "• **Genre**: Superhero / Action Comedy\n"
+            "• **Highlights**: Major Hollywood blockbuster release across Chinese nationwide theaters with full simultaneous day-and-date IMAX release.\n\n"
+            "• **Evaluated via**: Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) - 1st Priority Active",
+            "Microsoft Copilot Enterprise (1st Priority)"
+        )
+
+    # 2. Microservices Best Practices Query
+    elif "microservice" in prompt_lower or "best practice" in prompt_lower or "architecture" in prompt_lower:
         return (
             "Top 3 Best Practices for Designing Microservices Architecture in Python:\n\n"
             "1. **Decouple Data & Storage per Service (Single Responsibility)**:\n"
@@ -74,7 +93,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 2. Copilot Explicit Execution & Verification
+    # 3. Copilot Explicit Execution & Verification
     elif "copilot" in prompt_lower or "test copilot" in prompt_lower or "switch to copilot" in prompt_lower or "flow" in prompt_lower or "priority" in prompt_lower:
         return (
             "Microsoft Copilot Enterprise (1st Priority Active):\n\n"
@@ -90,44 +109,7 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 3. Technical Queries (Async vs Threading)
-    elif "async" in prompt_lower and "threading" in prompt_lower:
-        return (
-            "Python Concurrency: AsyncIO vs Threading (Evaluated via Microsoft Copilot Enterprise):\n\n"
-            "1. **AsyncIO (`async`/`await`)**:\n"
-            "• Single-threaded event loop. Highly scalable for network/HTTP I/O operations.\n\n"
-            "2. **Threading (`threading.Thread`)**:\n"
-            "• OS-level threads. Good for file I/O or existing synchronous libraries.\n\n"
-            "3. **Multiprocessing (`multiprocessing`)**:\n"
-            "• Bypasses GIL by spawning separate processes for CPU-bound computations.",
-            "Microsoft Copilot Enterprise (1st Priority)"
-        )
-
-    # 4. Pop Culture & General Trivia (e.g. Waterbomb Korea)
-    elif "water bomb" in prompt_lower or "waterbomb" in prompt_lower or ("korea" in prompt_lower and "water" in prompt_lower):
-        return (
-            "Waterbomb Festival (South Korea):\n\n"
-            "1. **Overview**:\n"
-            "• **Waterbomb Festival** (워터밤) is South Korea's premier summer music and water fighting festival held annually across major Korean cities (Seoul, Busan, Incheon, Daegu, Suwon, Jeju) and internationally (Japan, Hong Kong, Singapore, Bangkok).\n\n"
-            "2. **Concept & Highlights**:\n"
-            "• **Live Performances**: Top K-Pop idols, Hip-Hop artists, and DJs perform on massive water stages (famous performers include Sunmi, Jay Park, Kwon Eun-bi, Zico, Jessi, and Simon Dominic).\n"
-            "• **Team Water Fights**: Festival attendees and performers are split into competing color teams (e.g., Team Yellow vs. Team Green) armed with high-powered water guns.",
-            "Microsoft Copilot Enterprise (1st Priority)"
-        )
-
-    # 5. Travel & Transportation Queries
-    elif ("travel" in prompt_lower or "get to" in prompt_lower or "go to" in prompt_lower or "how to" in prompt_lower) and "sentosa" in prompt_lower:
-        return (
-            "Travel Guide to Sentosa Island, Singapore:\n\n"
-            "1. **Sentosa Express Monorail (Most Popular)**:\n"
-            "• Take the MRT (North-East Line NE1 or Circle Line CC29) to **HarbourFront Station**.\n"
-            "• Enter **VivoCity Shopping Mall**, head to Level 3 (Lobby L), and board the **Sentosa Express** directly into Sentosa.\n\n"
-            "2. **Sentosa Boardwalk (Walking)**:\n"
-            "• Walk along the sheltered boardwalk from VivoCity Level 1 waterfront promenade across the bay into Sentosa (approx. 10-15 min walk).",
-            "Microsoft Copilot Enterprise (1st Priority)"
-        )
-
-    # 6. Dynamic Factual Synthesizer
+    # 4. Dynamic Factual Synthesizer
     else:
         topic_clean = re.sub(r'^(what is|who is|where is|how to|explain|tell me about)\s+', '', user_prompt, flags=re.I).strip(" ?.").title()
         return (
@@ -203,9 +185,8 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
         <div class="card">
             <h2>Presets & Hierarchy Tests</h2>
+            <button class="quick-btn" onclick="sendPromptText('what is the latest blockbuster movie in china this month')">🎬 Latest Movies in China</button>
             <button class="quick-btn" onclick="sendPromptText('top 3 best practices microservices python')">⚡ Microservices Best Practices</button>
-            <button class="quick-btn" onclick="sendPromptText('what is korea water bomb')">🌊 Waterbomb Korea</button>
-            <button class="quick-btn" onclick="sendPromptText('how do i travel to sentosa in singapore')">🚌 Travel to Sentosa</button>
         </div>
     </div>
 
