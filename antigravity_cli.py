@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Google Antigravity Universal Engine - Interactive SSH CLI
-Connects to the Antigravity Docker Microservice on port 5005.
+Connects to the Antigravity Standalone Docker Microservice on port 5005.
 
 Usage:
   Interactive mode:  antigravity
@@ -34,9 +34,20 @@ def set_api_key(key_pair):
         data = json.loads(resp.read().decode("utf-8"))
         print(f"\n✅ {data.get('message', 'Key updated successfully!')}\n")
 
+def display_response(result):
+    if not isinstance(result, dict):
+        print(f"\n{result}\n")
+        return
+
+    reply = result.get("response") or result.get("message") or result.get("error")
+    if reply:
+        print(f"\n{reply}\n")
+    else:
+        print(f"\n{json.dumps(result, indent=2)}\n")
+
 def chat_loop():
     print("=======================================================================")
-    print("🚀 Google Antigravity Universal Engine - Interactive SSH CLI Interface")
+    print("🚀 Google Antigravity Standalone Engine - Interactive SSH CLI Interface")
     print("Connected to Microservice on Docker Container (port 5005)")
     print("Type your questions or instructions below. Type 'exit' or 'quit' to stop.")
     print("=======================================================================\n")
@@ -60,14 +71,9 @@ def chat_loop():
 
         try:
             result = post_chat(prompt)
-            response_text = result.get("response", "")
-            provider = result.get("provider_used", "Unknown")
-            query_count = result.get("query_count", "?")
-
-            print(f"\n{response_text}")
-            print(f"\n[Provider: {provider} | Query #{query_count}]\n")
+            display_response(result)
         except Exception as e:
-            print(f"\n[Error connecting to Antigravity Docker Microservice]: {e}\n")
+            print(f"\n[Error connecting to Antigravity Container on Port 5005]: {e}\n")
 
 if __name__ == "__main__":
     args = sys.argv[1:]
@@ -77,12 +83,12 @@ if __name__ == "__main__":
     elif args[0] == "--set-key" and len(args) > 1:
         set_api_key(args[1])
     else:
-        prompt = " ".join(args)
+        prompt = " ".join(args).strip("\"'")
         if prompt.startswith("--set-key "):
             set_api_key(prompt[10:].strip())
         else:
             try:
                 result = post_chat(prompt)
-                print(result.get("response", ""))
+                display_response(result)
             except Exception as e:
-                print(f"[Error]: {e}")
+                print(f"[Error connecting to Antigravity Container on Port 5005]: {e}")
