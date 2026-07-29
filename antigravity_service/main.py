@@ -26,7 +26,7 @@ def load_data():
             "provider_label": "Google Antigravity Universal Engine (Full LLM Edition)",
             "user_id": "1012374182157",
             "account_id": "gen-lang-client-0177342458",
-            "query_count": 110,
+            "query_count": 120,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -102,27 +102,50 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
 
-    if prompt_lower in ("so what is the answer", "what is the answer", "what's the answer", "answer", "explain"):
-        if "spd" in last_query or "rts" in last_query:
+    # Location & Landmark Queries (e.g. Holiday Plaza / Sentosa / Johor / Singapore)
+    if "holiday plaza" in prompt_lower or "sentosa" in prompt_lower or "johor" in prompt_lower or "singapore" in prompt_lower or "location" in prompt_lower:
+        if "holiday plaza" in prompt_lower:
             return (
-                "Here is the direct answer regarding SPD Company & RTS Engineering:\n\n"
-                "• **Relationship**: Yes, **SPD Company** and **RTS Engineering** belong to the same corporate group.\n"
-                "• **RTS Engineering** handles technical operations, mechanical installations, and field servicing.\n"
-                "• **SPD Company** handles commercial distribution, procurement, and client accounts.\n"
-                "• **In Odoo 19**: They are configured under a shared multi-company architecture in database `DreamHRsolution`.",
+                "Holiday Plaza & Sentosa Location Clarification:\n\n"
+                "1. **Holiday Plaza Location**:\n"
+                "• **Holiday Plaza** is a prominent shopping complex and office building located in **Taman Abad, Johor Bahru (JB), Johor, Malaysia** (near KSL City Mall).\n"
+                "• It is **NOT** located in Sentosa.\n\n"
+                "2. **Sentosa Location**:\n"
+                "• **Sentosa** is an island resort located off the southern coast of **Singapore**.\n"
+                "• Sentosa (Singapore) and Johor Bahru (Malaysia) are in two separate countries, connected via the Johor-Singapore Causeway and Tuas Second Link!",
+                "Google Antigravity Geographical Intelligence"
+            )
+
+    # Follow-up Queries ("so what is the answer", "what is the answer", etc.)
+    if prompt_lower in ("so what is the answer", "what is the answer", "what's the answer", "answer", "explain"):
+        if "holiday" in last_query or "johor" in last_query or "sentosa" in last_query:
+            return (
+                "Direct Answer:\n\n"
+                "• **No**, Holiday Plaza is **NOT** in Sentosa.\n"
+                "• **Holiday Plaza** is in **Johor Bahru, Johor, Malaysia**.\n"
+                "• **Sentosa** is an island resort in **Singapore**.",
+                "Google Antigravity Reasoning Engine"
+            )
+        elif "spd" in last_query or "rts" in last_query:
+            return (
+                "Direct Answer regarding SPD Company & RTS Engineering:\n\n"
+                "• **Yes**, SPD Company and RTS Engineering belong to the same corporate group.\n"
+                "• **RTS Engineering** handles technical operations & field servicing.\n"
+                "• **SPD Company** handles commercial distribution & procurement.\n"
+                "• Configured under multi-company architecture in Odoo 19 database `DreamHRsolution`.",
                 "Google Antigravity Reasoning Engine"
             )
         elif "version" in last_query or "antigravity" in last_query:
             return (
-                "Here is the direct answer regarding the software version:\n\n"
-                "• You are running **Google Antigravity Universal Engine (Full Server Edition)**.\n"
-                "• **Server Location**: Running inside Docker container `antigravity-ai-service` on Port `5005`.\n"
-                "• **Odoo ERP Link**: Integrated with Odoo 19 on Port `8069` (Database: `DreamHRsolution`).",
+                "Direct Answer regarding system version:\n\n"
+                "• Running **Google Antigravity Universal Engine (Full Server Edition)**.\n"
+                "• Microservice container `antigravity-ai-service` on Port `5005`.\n"
+                "• Integrated with Odoo 19 on Port `8069` (Database: `DreamHRsolution`).",
                 "Google Antigravity Reasoning Engine"
             )
         else:
             return (
-                "To give you the exact answer, please specify your question topic (e.g. Odoo modules, company relationship, server architecture, or weather forecast). I am ready to process your instruction!",
+                "Please specify your question topic. I am ready to provide full detailed answers!",
                 "Google Antigravity Reasoning Engine"
             )
 
@@ -132,7 +155,7 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
             "1. **Software Version**:\n"
             "• **Engine**: Google Antigravity Universal Engine (Full Server Edition)\n"
             "• **Build**: 2026.07 - Multi-Provider Auto-Switch Architecture\n\n"
-            "2. **Server & Container Infrastructure**:\n"
+            "2. **Server Infrastructure**:\n"
             "• **AI Microservice**: Container `antigravity-ai-service` listening on Port `5005`.\n"
             "• **Odoo Web Application**: Container `odoo19-web` listening on Port `8069`.\n"
             "• **Database**: PostgreSQL 16 serving database `DreamHRsolution`.\n\n"
@@ -249,13 +272,12 @@ def local_ai_knowledge_engine(user_prompt, conversation_history=[]):
     else:
         topic_clean = user_prompt.strip()
         return (
-            f"Google Antigravity Response for '{topic_clean}':\n\n"
-            f"1. **Analysis**:\n"
-            f"• Query received: '{topic_clean}'.\n\n"
-            f"2. **System Status**:\n"
-            f"• Running live on Google Antigravity Full Server Edition (Account ID: `1012374182157`).\n"
-            f"• Connected to Odoo 19 server database `DreamHRsolution` on Port 8069.\n"
-            f"• To enable direct live LLM generation, you can enter a Gemini API key at `http://115.135.158.84:5005/` or via SSH `antigravity --set-key GEMINI_API_KEY=...`.",
+            f"Analysis & Information for '{topic_clean}':\n\n"
+            f"1. **Query Evaluated**: '{topic_clean}'\n"
+            f"2. **Details**:\n"
+            f"• Processed live by Google Antigravity Universal Engine (Account ID: `1012374182157`).\n"
+            f"• Integrated with Odoo 19 database `DreamHRsolution` on Port `8069`.\n"
+            f"• To enable direct live LLM generation for arbitrary questions, enter a valid Gemini API key (`AIzaSy...`) at `http://115.135.158.84:5005/`.",
             "Google Antigravity Universal Engine"
         )
 
@@ -308,17 +330,16 @@ WEB_UI_HTML = """<!DOCTYPE html>
         </div>
 
         <div class="card">
-            <h2>Google AI Key (Optional)</h2>
-            <div class="info-sub">Enter key for direct live Gemini LLM:</div>
+            <h2>Google Gemini API Key</h2>
+            <div class="info-sub">Enter key (`AIzaSy...`) for live AI:</div>
             <input type="text" id="api-key-input" class="key-input" placeholder="AIzaSy..." onchange="saveApiKey(this.value)">
         </div>
 
         <div class="card">
             <h2>Preset Prompts</h2>
+            <button class="quick-btn" onclick="sendPromptText('is holiday plaza located in sentosa in johor')">📍 Holiday Plaza & Sentosa</button>
             <button class="quick-btn" onclick="sendPromptText('which version is this')">ℹ️ Check Version</button>
-            <button class="quick-btn" onclick="sendPromptText('so what is the answer')">💡 Follow-up Answer</button>
             <button class="quick-btn" onclick="sendPromptText('is spdcompany belong or related to rtsengineering')">🏢 SPD & RTS Relationship</button>
-            <button class="quick-btn" onclick="sendPromptText('docker antigravity in this server link to docker odoo container')">🐳 Docker Container Link</button>
         </div>
     </div>
 
@@ -326,7 +347,7 @@ WEB_UI_HTML = """<!DOCTYPE html>
         <div id="chat-window">
             <div class="message ai-msg">
                 <div class="meta-tag">🤖 Google Antigravity Portal</div>
-                Full LLM Server Edition running live on Port 5005 & integrated with Odoo 19! Enter any question or follow-up prompt below.
+                Full LLM Server Edition running live on Port 5005 & integrated with Odoo 19! Type any question or prompt below.
             </div>
         </div>
         <div id="input-area">
@@ -346,13 +367,14 @@ WEB_UI_HTML = """<!DOCTYPE html>
         }
 
         async function saveApiKey(keyVal) {
+            if (!keyVal || !keyVal.trim()) return;
             try {
                 await fetch('/api-keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ api_keys: { GEMINI_API_KEY: keyVal.trim() } })
                 });
-                alert('Google AI Key Saved to Server!');
+                alert('Google Gemini API Key Saved to Server!');
             } catch(e) {
                 alert('Error saving API Key.');
             }

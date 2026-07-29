@@ -6,6 +6,7 @@ Connects to the Antigravity Docker Microservice on port 5005.
 Usage:
   Interactive mode:  antigravity
   One-shot mode:     antigravity "your question here"
+  Set API key:       antigravity --set-key GEMINI_API_KEY=AIzaSy...
 """
 import sys
 import json
@@ -19,6 +20,19 @@ def post_chat(prompt):
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+def set_api_key(key_pair):
+    parts = key_pair.split("=", 1)
+    if len(parts) != 2:
+        print("Usage: antigravity --set-key KEY_NAME=KEY_VALUE")
+        return
+    key_name, key_val = parts[0].strip(), parts[1].strip()
+    url = f"{SERVICE_URL}/api-keys"
+    payload = json.dumps({"api_keys": {key_name: key_val}}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        print(f"\n✅ {data.get('message', 'Key updated successfully!')}\n")
 
 def chat_loop():
     print("=======================================================================")
@@ -40,6 +54,10 @@ def chat_loop():
             print("Goodbye!")
             break
 
+        if prompt.startswith("--set-key "):
+            set_api_key(prompt[10:].strip())
+            continue
+
         try:
             result = post_chat(prompt)
             response_text = result.get("response", "")
@@ -56,10 +74,15 @@ if __name__ == "__main__":
 
     if not args:
         chat_loop()
+    elif args[0] == "--set-key" and len(args) > 1:
+        set_api_key(args[1])
     else:
         prompt = " ".join(args)
-        try:
-            result = post_chat(prompt)
-            print(result.get("response", ""))
-        except Exception as e:
-            print(f"[Error]: {e}")
+        if prompt.startswith("--set-key "):
+            set_api_key(prompt[10:].strip())
+        else:
+            try:
+                result = post_chat(prompt)
+                print(result.get("response", ""))
+            except Exception as e:
+                print(f"[Error]: {e}")
