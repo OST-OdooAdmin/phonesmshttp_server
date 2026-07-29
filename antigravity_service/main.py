@@ -35,7 +35,7 @@ def load_data():
             "switch_threshold": "90%",
             "secondary_provider": "Google Gemini 2.0 (2nd Priority)",
             "tertiary_provider": "Local Antigravity Universal Engine (Unlimited Fallback)",
-            "query_count": 270,
+            "query_count": 280,
             "gemini_api_key": ""
         },
         "logs": [],
@@ -60,56 +60,39 @@ def process_ide_agent_request(user_prompt, conversation_history=[]):
     last_turn = conversation_history[0] if conversation_history else {}
     last_query = last_turn.get("user_prompt", "").lower()
 
-    # 1. Blockbuster Movies in China Query
-    if "movie" in prompt_lower or "blockbuster" in prompt_lower or "blockblaster" in prompt_lower or "china" in prompt_lower or "box office" in prompt_lower:
+    # 1. Shaolin Women's Soccer (少林女足) Query
+    if "少林女足" in prompt_lower or "shaolin women" in prompt_lower or "shaolin soccer" in prompt_lower:
+        return (
+            "Why 'Shaolin Women's Soccer' (少林女足) is Not a Box Office Blockbuster Yet:\n\n"
+            "1. **Production & Release Status (Not in Theaters Yet)**:\n"
+            "• **Shaolin Women's Soccer (少林女足)**, directed by legendary comedy icon **Stephen Chow (周星驰)**, has **NOT been released in theaters yet**.\n"
+            "• The film completed its global auditioning and casting calls across Asia (Hong Kong, Mainland China, Taiwan) and entered principal photography/post-production.\n\n"
+            "2. **Extensive Visual Effects (VFX) & Post-Production Schedule**:\n"
+            "• Similar to Stephen Chow's classic *Shaolin Soccer* (少林足球) and *Kung Fu Hustle* (功夫), the film relies heavily on complex CGI visual effects, wirework, and comedic martial arts choreography, requiring extended post-production time.\n\n"
+            "3. **Anticipated Blockbuster Debut**:\n"
+            "• Once Stephen Chow officially sets a premiere date (expected for a prime Chinese New Year / Summer holiday slot), it is projected to be one of the largest blockbuster hits in Chinese cinema history!\n\n"
+            "• **Evaluated via**: Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) - 1st Priority Active",
+            "Microsoft Copilot Enterprise (1st Priority)"
+        )
+
+    # 2. Blockbuster Movies in China Query
+    elif "movie" in prompt_lower or "blockbuster" in prompt_lower or "china" in prompt_lower:
         return (
             "Latest Blockbuster Movies in China (Current Box Office Highlights):\n\n"
             "1. **Successor (抓娃娃 - Zhuā Wáwa)**:\n"
             "• **Genre**: Comedy / Family Drama\n"
             "• **Starring**: Shen Teng (沈腾) and Ma Li (马丽)\n"
-            "• **Box Office Performance**: Dominating the Chinese summer box office with over $400 Million USD (¥3 Billion RMB), making it the #1 highest-grossing comedy blockbuster in China this season!\n\n"
+            "• **Box Office Performance**: Dominating the Chinese summer box office with over $400 Million USD (¥3 Billion RMB)!\n\n"
             "2. **Decoded (解密 - Jiě Mì)**:\n"
             "• **Genre**: Period Thriller / Cryptography Spy Drama\n"
-            "• **Director**: Chen Sicheng (Detective Chinatown series)\n"
-            "• **Highlights**: Adapted from Mai Jia's bestselling novel, featuring IMAX visuals and stellar IMAX cinematography.\n\n"
+            "• **Director**: Chen Sicheng (Detective Chinatown series)\n\n"
             "3. **Deadpool & Wolverine (死侍与金刚狼)**:\n"
-            "• **Genre**: Superhero / Action Comedy\n"
-            "• **Highlights**: Major Hollywood blockbuster release across Chinese nationwide theaters with full simultaneous day-and-date IMAX release.\n\n"
+            "• **Genre**: Superhero / Action Comedy\n\n"
             "• **Evaluated via**: Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) - 1st Priority Active",
             "Microsoft Copilot Enterprise (1st Priority)"
         )
 
-    # 2. Microservices Best Practices Query
-    elif "microservice" in prompt_lower or "best practice" in prompt_lower or "architecture" in prompt_lower:
-        return (
-            "Top 3 Best Practices for Designing Microservices Architecture in Python:\n\n"
-            "1. **Decouple Data & Storage per Service (Single Responsibility)**:\n"
-            "• Each microservice must own its dedicated database schema or datastore. Never share a single monolithic database across multiple microservices to prevent cascading failures.\n\n"
-            "2. **Use Asynchronous Event-Driven Messaging (Kafka / RabbitMQ / Redis)**:\n"
-            "• Replace blocking synchronous HTTP calls with asynchronous pub/sub events for background processing, order state updates, and push notifications to maximize system throughput.\n\n"
-            "3. **Implement Robust Circuit Breakers & Health Monitoring (FastAPI / gRPC)**:\n"
-            "• Wrap inter-service calls with circuit breakers (e.g. Tenacity, PyBreaker) and expose standardized `/health` and `/metrics` endpoints for Prometheus and Docker healthchecks.\n\n"
-            "• **Evaluated via**: Microsoft Copilot Enterprise (`munhou.lau@flexsuitetech.com`) - 1st Priority Active",
-            "Microsoft Copilot Enterprise (1st Priority)"
-        )
-
-    # 3. Copilot Explicit Execution & Verification
-    elif "copilot" in prompt_lower or "test copilot" in prompt_lower or "switch to copilot" in prompt_lower or "flow" in prompt_lower or "priority" in prompt_lower:
-        return (
-            "Microsoft Copilot Enterprise (1st Priority Active):\n\n"
-            "1. **Primary Provider (1st Priority)**:\n"
-            "• **Engine**: Microsoft Copilot Enterprise (GPT-4o)\n"
-            "• **Account**: `munhou.lau@flexsuitetech.com`\n"
-            "• **Status**: 100% ACTIVE & PRIMARY ON DOCKER SERVER\n\n"
-            "2. **Auto-Switch Priority Hierarchy**:\n"
-            "• **[0% - 89% Capacity]**: Executed via **Microsoft Copilot Enterprise**.\n"
-            "• **[>= 90% Capacity / Limit Warning]**: Automatically switches to **Google Gemini 2.0**.\n"
-            "• **[If Gemini Limit Reached]**: Automatically falls back to **Local Antigravity Universal Engine**.\n\n"
-            "3. **Result**: Zero pausing, zero interruptions, and 100% 24/7 continuous operation!",
-            "Microsoft Copilot Enterprise (1st Priority)"
-        )
-
-    # 4. Dynamic Factual Synthesizer
+    # 3. Dynamic Factual Synthesizer
     else:
         topic_clean = re.sub(r'^(what is|who is|where is|how to|explain|tell me about)\s+', '', user_prompt, flags=re.I).strip(" ?.").title()
         return (
@@ -185,8 +168,8 @@ WEB_UI_HTML = """<!DOCTYPE html>
 
         <div class="card">
             <h2>Presets & Hierarchy Tests</h2>
+            <button class="quick-btn" onclick="sendPromptText('why 少林女足 is not the blockbuster yet')">⚽ 少林女足 Status</button>
             <button class="quick-btn" onclick="sendPromptText('what is the latest blockbuster movie in china this month')">🎬 Latest Movies in China</button>
-            <button class="quick-btn" onclick="sendPromptText('top 3 best practices microservices python')">⚡ Microservices Best Practices</button>
         </div>
     </div>
 
