@@ -69,8 +69,13 @@ class PollingEngine(
         }
     }
 
-    fun startPolling(serverUrl: String, apiKey: String, intervalSeconds: Int = 60) {
-        stopPolling() // Ensure previous polling job is cancelled when URL changes!
+    fun startPolling(
+        serverUrl: String,
+        apiKey: String,
+        intervalSeconds: Int = 60,
+        pacingDelayMs: Long = 1500L
+    ) {
+        stopPolling() // Ensure previous polling job is cancelled when URL/settings change
         
         if (serverUrl.isBlank()) {
             onLog("Polling skipped: No server URL provided.")
@@ -78,24 +83,26 @@ class PollingEngine(
         }
 
         pollingJob = CoroutineScope(Dispatchers.IO).launch {
-            onLog("Started Local Server Polling Client -> $serverUrl (Interval: ${intervalSeconds}s / 1min)")
+            onLog("Started Local Server Polling Client -> $serverUrl (Interval: ${intervalSeconds}s, Bulk Pacing: ${pacingDelayMs / 1000.0}s)")
 
             val pendingUrl = if (serverUrl.endsWith("/")) "${serverUrl}pending" else "$serverUrl/pending"
             val statusUrl = if (serverUrl.endsWith("/")) "${serverUrl}status" else "$serverUrl/status"
 
             while (isActive) {
                 try {
-                    onLog("Polling $pendingUrl...")
                     val response: PendingSmsResponse = httpClient.get(pendingUrl) {
                         header("X-Api-Key", apiKey)
                     }.body()
 
                     val pendingList = response.pending
                     if (pendingList != null && pendingList.isNotEmpty()) {
-                        onLog("Retrieved ${pendingList.size} pending JSON SMS tasks from server")
-                        for (task in pendingList) {
+                        onLog("Retrieved ${pendingList.size} pending SMS tasks from server batch")
+                        
+                        for ((index, task) in pendingList.withIndex()) {
+                            if (!isActive) break
+                            
                             if (task.to.isNotBlank()) {
-                                onLog("Processing task #${task.id} -> ${task.to}")
+                                onLog("Processing task #${task.id} (${index + 1}/${pendingList.size}) -> ${task.to}")
                                 
                                 val result = SmsSender.sendSms(context, task.to, task.message)
                                 val statusStr = if (result.success) "sent" else "failed"
@@ -112,9 +119,15 @@ class PollingEngine(
                                             )
                                         )
                                     }
-                                    onLog("Reported JSON status for task #${task.id} to server")
+                                    onLog("Reported status for task #${task.id} [${statusStr.uppercase()}]")
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Failed to report status for task #${task.id}", e)
+                                }
+
+                                // Bulk Pacing Delay to prevent telco anti-spam carrier locks
+                                if (index < pendingList.size - 1 && pacingDelayMs > 0) {
+                                    onLog("Pacing delay: Waiting ${pacingDelayMs / 1000.0}s before next SMS...")
+                                    delay(pacingDelayMs)
                                 }
                             }
                         }
