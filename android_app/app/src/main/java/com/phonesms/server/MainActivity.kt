@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -16,25 +15,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -44,10 +40,8 @@ import io.ktor.http.contentType
 import io.ktor.serialization.gson.gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class PhoneDispatchPayload(
     val to: String,
@@ -66,6 +60,9 @@ class MainActivity : ComponentActivity() {
     private val selectedSubIdState = mutableStateOf<Int?>(null)
     private val logFetchStatusState = mutableStateOf("Server sync running.")
 
+    // Live 1-Minute Visual Countdown State
+    private val countdownSecondsState = mutableStateOf(60)
+
     // Persistent Settings State
     private val serverUrlState = mutableStateOf("")
     private val apiKeyState = mutableStateOf("")
@@ -76,6 +73,11 @@ class MainActivity : ComponentActivity() {
             install(ContentNegotiation) {
                 gson()
             }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 5000
+                connectTimeoutMillis = 4000
+                socketTimeoutMillis = 5000
+            }
         }
     }
 
@@ -85,7 +87,7 @@ class MainActivity : ComponentActivity() {
             smsService = binder.getService()
             isBound = true
 
-            if (serverUrlState.value.isNotBlank()) {
+            if (serverUrlState.value.isNotBlank() && isPollingEnabledState.value) {
                 startPollingService()
             }
         }
@@ -115,14 +117,18 @@ class MainActivity : ComponentActivity() {
         loadSettings()
         reloadSimCards()
 
-        // Start & Bind Foreground Service
-        val serviceIntent = Intent(this, SmsForegroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        // Start & Bind Foreground Service Safely
+        try {
+            val serviceIntent = Intent(this, SmsForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start/bind service: ${e.message}")
         }
-        bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
 
         setContent {
             MaterialTheme(
@@ -140,24 +146,39 @@ class MainActivity : ComponentActivity() {
                     val scope = rememberCoroutineScope()
 
                     fun autoFetchLogs() {
-                        scope.launch {
-                            val engine = PollingEngine(this@MainActivity) {}
-                            val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
-                            serverLogsState.clear()
-                            serverLogsState.addAll(logs)
-                            logFetchStatusState.value = if (logs.isNotEmpty()) {
-                                "Synced ${logs.size} log records from server."
-                            } else {
-                                "No server logs found."
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                if (serverUrlState.value.isBlank()) return@launch
+                                val engine = PollingEngine(this@MainActivity) {}
+                                val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
+                                launch(Dispatchers.Main) {
+                                    serverLogsState.clear()
+                                    serverLogsState.addAll(logs)
+                                    logFetchStatusState.value = if (logs.isNotEmpty()) {
+                                        "Synced ${logs.size} log records from server."
+                                    } else {
+                                        "No server logs found."
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "autoFetchLogs error: ${e.message}")
                             }
                         }
                     }
 
-                    // Auto fetch on launch and start polling
-                    LaunchedEffect(Unit) {
-                        autoFetchLogs()
-                        if (serverUrlState.value.isNotBlank()) {
-                            startPollingService()
+                    // Live 1-Minute (60s) Countdown Loop
+                    LaunchedEffect(isPollingEnabledState.value) {
+                        if (isPollingEnabledState.value) {
+                            while (true) {
+                                autoFetchLogs()
+                                countdownSecondsState.value = 60
+                                for (i in 60 downTo 1) {
+                                    countdownSecondsState.value = i
+                                    delay(1000L)
+                                }
+                            }
+                        } else {
+                            countdownSecondsState.value = 0
                         }
                     }
 
@@ -169,6 +190,7 @@ class MainActivity : ComponentActivity() {
                         serverUrl = serverUrlState.value,
                         apiKey = apiKeyState.value,
                         isPollingEnabled = isPollingEnabledState.value,
+                        countdownSeconds = countdownSecondsState.value,
                         onSelectSim = { subId -> selectedSubIdState.value = subId },
                         onTabChanged = { tab ->
                             if (tab == 1) {
@@ -176,15 +198,14 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onSaveSettings = { url, key, enabled ->
-                            serverUrlState.value = url
-                            apiKeyState.value = key
+                            serverUrlState.value = url.trim()
+                            apiKeyState.value = key.trim()
                             isPollingEnabledState.value = enabled
-                            saveSettings(url, key, enabled)
+                            saveSettings(url.trim(), key.trim(), enabled)
 
+                            stopPollingService()
                             if (enabled) {
                                 startPollingService()
-                            } else {
-                                stopPollingService()
                             }
                             autoFetchLogs()
                         },
@@ -200,7 +221,6 @@ class MainActivity : ComponentActivity() {
                             Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
                             smsService?.addLog("Manual SMS -> $recipient [${if (result.success) "SUCCESS" else "FAILED"}]")
 
-                            // Log directly to Server's /var/log/sms_gateway_activity.log
                             if (serverUrlState.value.isNotBlank()) {
                                 scope.launch(Dispatchers.IO) {
                                     try {
@@ -235,78 +255,94 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (serverUrlState.value.isNotBlank()) {
-            startPollingService()
-            CoroutineScope(Dispatchers.Main).launch {
-                val engine = PollingEngine(this@MainActivity) {}
-                val logs = engine.fetchServerLogs(serverUrlState.value, apiKeyState.value)
-                serverLogsState.clear()
-                serverLogsState.addAll(logs)
+        if (serverUrlState.value.isNotBlank() && isPollingEnabledState.value) {
+            try {
+                startPollingService()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "onResume error: ${e.message}")
             }
         }
     }
 
-    private fun startPollingService() {
-        val intent = Intent(this, SmsForegroundService::class.java).apply {
-            action = SmsForegroundService.ACTION_START_POLLING
-            putExtra(SmsForegroundService.EXTRA_URL, serverUrlState.value)
-            putExtra(SmsForegroundService.EXTRA_API_KEY, apiKeyState.value)
+    private fun checkAndRequestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.SEND_SMS)
         }
-        startService(intent)
-    }
-
-    private fun stopPollingService() {
-        val intent = Intent(this, SmsForegroundService::class.java).apply {
-            action = SmsForegroundService.ACTION_STOP_POLLING
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.READ_PHONE_STATE)
         }
-        startService(intent)
-    }
-
-    private fun loadSettings() {
-        val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
-        serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:2222") ?: "http://115.135.158.84:2222"
-        apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
-        isPollingEnabledState.value = prefs.getBoolean("polling_enabled", true)
-    }
-
-    private fun saveSettings(url: String, key: String, enabled: Boolean) {
-        val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("server_url", url)
-            .putString("api_key", key)
-            .putBoolean("polling_enabled", enabled)
-            .apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        if (permissionsToRequest.isNotEmpty()) {
+            permissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
     }
 
     private fun reloadSimCards() {
-        availableSimsState.clear()
-        val sims = SmsSender.getActiveSimCards(this)
-        availableSimsState.addAll(sims)
-        if (selectedSubIdState.value == null && sims.isNotEmpty()) {
-            selectedSubIdState.value = sims[0].subId
+        try {
+            val sims = SmsSender.getActiveSimCards(this)
+            availableSimsState.clear()
+            availableSimsState.addAll(sims)
+            if (selectedSubIdState.value == null && sims.isNotEmpty()) {
+                selectedSubIdState.value = sims.first().subId
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "reloadSimCards exception: ${e.message}")
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isBound) {
-            unbindService(connection)
-            isBound = false
+    private fun startPollingService() {
+        try {
+            val intent = Intent(this, SmsForegroundService::class.java).apply {
+                action = SmsForegroundService.ACTION_START_POLLING
+                putExtra(SmsForegroundService.EXTRA_URL, serverUrlState.value)
+                putExtra(SmsForegroundService.EXTRA_API_KEY, apiKeyState.value)
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "startPollingService error: ${e.message}")
         }
     }
 
-    private fun checkAndRequestPermissions() {
-        val neededPermissions = mutableListOf(Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
+    private fun stopPollingService() {
+        try {
+            val intent = Intent(this, SmsForegroundService::class.java).apply {
+                action = SmsForegroundService.ACTION_STOP_POLLING
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "stopPollingService error: ${e.message}")
         }
+    }
 
-        val missing = neededPermissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+    private fun loadSettings() {
+        try {
+            val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+            serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:22") ?: "http://115.135.158.84:22"
+            apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
+            isPollingEnabledState.value = prefs.getBoolean("polling_enabled", true)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "loadSettings error: ${e.message}")
+            serverUrlState.value = "http://115.135.158.84:22"
+            apiKeyState.value = "secret_sms_key_123"
+            isPollingEnabledState.value = true
         }
+    }
 
-        if (missing.isNotEmpty()) {
-            permissionLauncher.launch(missing.toTypedArray())
+    private fun saveSettings(url: String, key: String, enabled: Boolean) {
+        try {
+            val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("server_url", url)
+                .putString("api_key", key)
+                .putBoolean("polling_enabled", enabled)
+                .apply()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "saveSettings error: ${e.message}")
         }
     }
 
@@ -314,9 +350,20 @@ class MainActivity : ComponentActivity() {
         if (text.isBlank()) return 0
         return text.trim().split("\\s+".toRegex()).size
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isBound) {
+            try {
+                unbindService(connection)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "unbindService exception: ${e.message}")
+            }
+            isBound = false
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmsGatewayApp(
     serverLogs: List<SmsLogRecord>,
@@ -326,353 +373,274 @@ fun SmsGatewayApp(
     serverUrl: String,
     apiKey: String,
     isPollingEnabled: Boolean,
+    countdownSeconds: Int,
     onSelectSim: (Int) -> Unit,
     onTabChanged: (Int) -> Unit,
     onSaveSettings: (String, String, Boolean) -> Unit,
     onSendSms: (String, String) -> Unit
 ) {
-    var recipientPhone by remember { mutableStateOf("") }
-    var messageText by remember { mutableStateOf("") }
-    var showSettingsDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
 
-    val wordCount = remember(messageText) {
-        if (messageText.isBlank()) 0 else messageText.trim().split("\\s+".toRegex()).size
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Banner with live 1-minute countdown timer
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isPollingEnabled) Color(0xFF1E3A29) else Color(0xFF333333)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = if (isPollingEnabled) "🟢 Server Sync Active (Every 1 Min)" else "⚪ Server Sync Off",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = if (isPollingEnabled) "Next Server Fetch in: ${countdownSeconds}s" else "Enable sync in Settings tab",
+                        color = if (isPollingEnabled) Color(0xFF81C784) else Color.Gray,
+                        fontSize = 12.sp
+                    )
+                }
+
+                if (isPollingEnabled) {
+                    CircularProgressIndicator(
+                        progress = { (60 - countdownSeconds) / 60f },
+                        modifier = Modifier.size(28.dp),
+                        color = Color(0xFF4CAF50),
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
+        }
+
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0; onTabChanged(0) },
+                text = { Text("Send SMS", fontWeight = FontWeight.Bold) }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1; onTabChanged(1) },
+                text = { Text("Server Logs", fontWeight = FontWeight.Bold) }
+            )
+            Tab(
+                selected = selectedTab == 2,
+                onClick = { selectedTab = 2; onTabChanged(2) },
+                text = { Text("Settings", fontWeight = FontWeight.Bold) }
+            )
+        }
+
+        when (selectedTab) {
+            0 -> SendSmsScreen(availableSims, selectedSubId, onSelectSim, onSendSms)
+            1 -> ServerLogsScreen(serverLogs, logFetchStatus, onRefresh = { onTabChanged(1) })
+            2 -> SettingsScreen(serverUrl, apiKey, isPollingEnabled, onSaveSettings)
+        }
     }
-    val isWordCountExceeded = wordCount > 500
+}
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(selectedTab) {
-        onTabChanged(selectedTab)
-    }
+@Composable
+fun SendSmsScreen(
+    sims: List<SimInfo>,
+    selectedSubId: Int?,
+    onSelectSim: (Int) -> Unit,
+    onSendSms: (String, String) -> Unit
+) {
+    var recipient by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // App Header with Settings Gear Icon
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "📱 Phone SMS Gateway App",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = if (isPollingEnabled) "🟢 Server Sync Active (1 min)" else "⚪ Offline / Standalone",
-                    fontSize = 11.sp,
-                    color = if (isPollingEnabled) Color(0xFF81C784) else Color.Gray
-                )
-            }
-            IconButton(onClick = { showSettingsDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White
-                )
-            }
-        }
-
-        // Dual SIM Selector Bar if multiple SIM cards found
-        if (availableSims.size > 1) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 10.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Send via:",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        availableSims.forEach { sim ->
-                            val isSelected = selectedSubId == sim.subId
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) Color(0xFF4CAF50) else Color(0xFF333333),
-                                        shape = RoundedCornerShape(16.dp)
-                                    )
-                                    .clickable { onSelectSim(sim.subId) }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = "SIM ${sim.slotIndex}: ${sim.carrierName}",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Navigation Tabs (Send SMS vs View Server Logs)
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("✉️ Send SMS") }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("📋 Server Logs (${serverLogs.size})") }
-            )
-        }
-
+        Text("Outbound Cellular SMS Dispatcher", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (selectedTab == 0) {
-            // TAB 1: SEND SMS FORM
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "Recipient Phone Number", fontWeight = FontWeight.SemiBold)
-                    Text(text = "Format: +65xxxxxxx", fontSize = 11.sp, color = Color.Gray)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = recipientPhone,
-                    onValueChange = { recipientPhone = it },
-                    placeholder = { Text("+6591234567 or 91234567") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "Message Content", fontWeight = FontWeight.SemiBold)
-                    
-                    TextButton(
-                        onClick = {
-                            val timestampStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                            messageText = "Test SMS from Android Gateway [$timestampStr]"
-                        },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("🧪 Fill Test Msg", fontSize = 11.sp, color = Color(0xFF64B5F6))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = { messageText = it },
-                    placeholder = { Text("Type message here (Max 500 words)...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp),
-                    isError = isWordCountExceeded
-                )
-
-                if (isWordCountExceeded) {
-                    Text(
-                        text = "⚠️ Message exceeds maximum 500 words limit!",
-                        color = Color.Red,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 4.dp)
+        if (sims.isNotEmpty()) {
+            Text("Select SIM Card Slot:", fontSize = 14.sp, color = Color.LightGray)
+            Row(modifier = Modifier.padding(vertical = 8.dp)) {
+                sims.forEach { sim ->
+                    FilterChip(
+                        selected = (selectedSubId == sim.subId),
+                        onClick = { onSelectSim(sim.subId) },
+                        label = { Text("SIM ${sim.slotIndex} (${sim.carrierName})") },
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        if (recipientPhone.isNotBlank() && messageText.isNotBlank()) {
-                            val cleanTarget = if (!recipientPhone.startsWith("+") && recipientPhone.length == 8) {
-                                "+65$recipientPhone"
-                            } else {
-                                recipientPhone
-                            }
-                            onSendSms(cleanTarget, messageText)
-                            messageText = ""
-                        }
-                    },
-                    enabled = recipientPhone.isNotBlank() && messageText.isNotBlank() && !isWordCountExceeded,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("🚀 Send SMS Message", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        } else {
-            // TAB 2: SERVER LOGS VIEW (FETCHED AUTOMATICALLY FROM SERVER)
-            Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Central Server Logs (Auto-Synced)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(text = logFetchStatus, fontSize = 11.sp, color = Color.Gray)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (serverLogs.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "No server logs found (or server not reachable).", color = Color.Gray)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(serverLogs) { log ->
-                            SmsLogCard(log)
-                        }
-                    }
                 }
             }
         }
-    }
 
-    // Settings Dialog Modal
-    if (showSettingsDialog) {
-        var tempUrl by remember { mutableStateOf(serverUrl) }
-        var tempKey by remember { mutableStateOf(apiKey) }
-        var tempEnabled by remember { mutableStateOf(isPollingEnabled) }
-
-        AlertDialog(
-            onDismissRequest = { showSettingsDialog = false },
-            title = { Text("⚙️ Local Server Settings", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(text = "Local Server Base URL:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
-                        value = tempUrl,
-                        onValueChange = { tempUrl = it },
-                        placeholder = { Text("http://115.135.158.84:2222") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(text = "API Key:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
-                        value = tempKey,
-                        onValueChange = { tempKey = it },
-                        placeholder = { Text("secret_sms_key_123") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(text = "Polling Interval: 1 minute (60s JSON format)", fontSize = 11.sp, color = Color.Gray)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "Enable Server Sync", fontSize = 13.sp)
-                        Switch(
-                            checked = tempEnabled,
-                            onCheckedChange = { tempEnabled = it }
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSaveSettings(tempUrl.trim(), tempKey.trim(), tempEnabled)
-                        showSettingsDialog = false
-                    }
-                ) {
-                    Text("Save Settings")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettingsDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+        OutlinedTextField(
+            value = recipient,
+            onValueChange = { recipient = it },
+            label = { Text("Recipient Phone Number (e.g. +6596780253)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = message,
+            onValueChange = { message = it },
+            label = { Text("SMS Message Body") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                if (recipient.isNotBlank() && message.isNotBlank()) {
+                    onSendSms(recipient.trim(), message.trim())
+                    message = ""
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("DISPATCH CELLULAR SMS NOW", color = Color.White, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
 @Composable
-fun SmsLogCard(log: SmsLogRecord) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (log.status.startsWith("SUCCESS") || log.status.lowercase() == "sent") Color(0xFF1B2E1B) else (if (log.status.uppercase() == "QUEUED") Color(0xFF332B1B) else Color(0xFF331B1B))
-        )
+fun ServerLogsScreen(
+    logs: List<SmsLogRecord>,
+    logFetchStatus: String,
+    onRefresh: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "To: ${log.recipient}",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Text(
-                    text = log.status,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = if (log.status.startsWith("SUCCESS") || log.status.lowercase() == "sent") Color(0xFF81C784) else (if (log.status.uppercase() == "QUEUED") Color(0xFFFFB74D) else Color(0xFFE57373))
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Central Gateway Logs (3 Months)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            IconButton(onClick = onRefresh) {
+                Text("🔄", fontSize = 18.sp)
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Time: ${log.timestamp}", fontSize = 11.sp, color = Color.Gray)
-                Text(text = "${log.wordCount} words", fontSize = 11.sp, color = Color.Gray)
+        }
+
+        Text(logFetchStatus, fontSize = 12.sp, color = Color.Gray)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (logs.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No server logs found.", color = Color.Gray)
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = log.message,
-                fontSize = 13.sp,
-                color = Color(0xFFE0E0E0),
-                fontFamily = FontFamily.SansSerif
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(logs) { log ->
+                    val statusColor = when (log.status) {
+                        "SUCCESS" -> Color(0xFF4CAF50)
+                        "FAILED" -> Color(0xFFF44336)
+                        else -> Color(0xFFFF9800)
+                    }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(log.recipient, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(log.status, color = statusColor, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(log.message, color = Color.LightGray, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("${log.timestamp} • ${log.wordCount} words", color = Color.Gray, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    currentUrl: String,
+    currentKey: String,
+    currentEnabled: Boolean,
+    onSave: (String, String, Boolean) -> Unit
+) {
+    var urlInput by remember { mutableStateOf(currentUrl) }
+    var keyInput by remember { mutableStateOf(currentKey) }
+    var enabledInput by remember { mutableStateOf(currentEnabled) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text("SMS Gateway Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = urlInput,
+            onValueChange = { urlInput = it },
+            label = { Text("Server Gateway URL (e.g. http://115.135.158.84:22)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = keyInput,
+            onValueChange = { keyInput = it },
+            label = { Text("API Security Key") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Enable Background Server Sync", color = Color.White)
+            Switch(
+                checked = enabledInput,
+                onCheckedChange = { enabledInput = it }
             )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                onSave(urlInput, keyInput, enabledInput)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+        ) {
+            Text("SAVE GATEWAY SETTINGS", color = Color.White, fontWeight = FontWeight.Bold)
         }
     }
 }

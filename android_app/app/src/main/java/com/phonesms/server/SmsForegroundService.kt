@@ -6,9 +6,11 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class SmsForegroundService : Service() {
@@ -29,7 +31,7 @@ class SmsForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification("SMS Gateway Active"))
+        startForegroundSafely()
         
         httpServerEngine = HttpServerEngine(this, 8080) { log ->
             addLog(log)
@@ -39,19 +41,37 @@ class SmsForegroundService : Service() {
         }
     }
 
+    private fun startForegroundSafely() {
+        try {
+            val notification = createNotification("SMS Gateway Active")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                } catch (e: Exception) {
+                    Log.e("SmsForegroundService", "startForeground with type failed: ${e.message}")
+                    startForeground(NOTIFICATION_ID, notification)
+                }
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("SmsForegroundService", "startForegroundSafely exception: ${e.message}")
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         when (action) {
             ACTION_START_SERVER -> {
-                val port = intent.getIntExtra(EXTRA_PORT, 8080)
+                val port = intent?.getIntExtra(EXTRA_PORT, 8080) ?: 8080
                 httpServerEngine?.start()
             }
             ACTION_STOP_SERVER -> {
                 httpServerEngine?.stop()
             }
             ACTION_START_POLLING -> {
-                val url = intent.getStringExtra(EXTRA_URL) ?: ""
-                val apiKey = intent.getStringExtra(EXTRA_API_KEY) ?: ""
+                val url = intent?.getStringExtra(EXTRA_URL) ?: ""
+                val apiKey = intent?.getStringExtra(EXTRA_API_KEY) ?: ""
                 pollingEngine?.startPolling(url, apiKey)
             }
             ACTION_STOP_POLLING -> {

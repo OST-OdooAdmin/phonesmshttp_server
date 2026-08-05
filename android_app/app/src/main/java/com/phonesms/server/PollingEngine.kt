@@ -21,17 +21,17 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class SmsTask(
-    val id: Int,
-    val to: String,
-    val message: String
+    val id: Int = 0,
+    val to: String = "",
+    val message: String = ""
 )
 
 data class PendingSmsResponse(
-    val pending: List<SmsTask>
+    val pending: List<SmsTask> = emptyList()
 )
 
 data class ServerLogsResponse(
-    val logs: List<SmsLogRecord>
+    val logs: List<SmsLogRecord> = emptyList()
 )
 
 data class SmsStatusReport(
@@ -62,15 +62,16 @@ class PollingEngine(
             val response: ServerLogsResponse = httpClient.get(logsUrl) {
                 header("X-Api-Key", apiKey)
             }.body()
-            response.logs
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to fetch server logs", e)
+            response.logs ?: emptyList()
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to fetch server logs safely: ${t.message}")
             emptyList()
         }
     }
 
     fun startPolling(serverUrl: String, apiKey: String, intervalSeconds: Int = 60) {
-        if (pollingJob != null && pollingJob?.isActive == true) return
+        stopPolling() // Ensure previous polling job is cancelled when URL changes!
+        
         if (serverUrl.isBlank()) {
             onLog("Polling skipped: No server URL provided.")
             return
@@ -79,44 +80,47 @@ class PollingEngine(
         pollingJob = CoroutineScope(Dispatchers.IO).launch {
             onLog("Started Local Server Polling Client -> $serverUrl (Interval: ${intervalSeconds}s / 1min)")
 
-            val pendingUrl = if (serverUrl.endsWith("/")) "${serverUrl}api/sms/pending" else "$serverUrl/api/sms/pending"
-            val statusUrl = if (serverUrl.endsWith("/")) "${serverUrl}api/sms/status" else "$serverUrl/api/sms/status"
+            val pendingUrl = if (serverUrl.endsWith("/")) "${serverUrl}pending" else "$serverUrl/pending"
+            val statusUrl = if (serverUrl.endsWith("/")) "${serverUrl}status" else "$serverUrl/status"
 
             while (isActive) {
                 try {
+                    onLog("Polling $pendingUrl...")
                     val response: PendingSmsResponse = httpClient.get(pendingUrl) {
                         header("X-Api-Key", apiKey)
                     }.body()
 
-                    if (response.pending.isNotEmpty()) {
-                        onLog("Retrieved ${response.pending.size} pending JSON SMS tasks from server")
-                        for (task in response.pending) {
-                            onLog("Processing task #${task.id} -> ${task.to}")
-                            
-                            val result = SmsSender.sendSms(context, task.to, task.message)
-                            val statusStr = if (result.success) "sent" else "failed"
-                            
-                            // Post status receipt JSON back to server (No phone local storage!)
-                            try {
-                                httpClient.post(statusUrl) {
-                                    header("X-Api-Key", apiKey)
-                                    contentType(ContentType.Application.Json)
-                                    setBody(
-                                        SmsStatusReport(
-                                            task_id = task.id,
-                                            status = statusStr,
-                                            detail = result.message
+                    val pendingList = response.pending
+                    if (pendingList != null && pendingList.isNotEmpty()) {
+                        onLog("Retrieved ${pendingList.size} pending JSON SMS tasks from server")
+                        for (task in pendingList) {
+                            if (task.to.isNotBlank()) {
+                                onLog("Processing task #${task.id} -> ${task.to}")
+                                
+                                val result = SmsSender.sendSms(context, task.to, task.message)
+                                val statusStr = if (result.success) "sent" else "failed"
+                                
+                                try {
+                                    httpClient.post(statusUrl) {
+                                        header("X-Api-Key", apiKey)
+                                        contentType(ContentType.Application.Json)
+                                        setBody(
+                                            SmsStatusReport(
+                                                task_id = task.id,
+                                                status = statusStr,
+                                                detail = result.message
+                                            )
                                         )
-                                    )
+                                    }
+                                    onLog("Reported JSON status for task #${task.id} to server")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to report status for task #${task.id}", e)
                                 }
-                                onLog("Reported JSON status for task #${task.id} to server")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to report status for task #${task.id}", e)
                             }
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Polling error", e)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Polling error handled safely: ${t.message}")
                 }
 
                 delay(intervalSeconds * 1000L)

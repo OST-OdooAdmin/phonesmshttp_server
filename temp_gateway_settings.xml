@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="polling_enabled" value="true" />
+    <string name="api_key">secret_sms_key_123</string>
+    <string name="server_url">http://192.168.0.106:22</string>
+</map>

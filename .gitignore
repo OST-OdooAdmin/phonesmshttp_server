@@ -1,42 +1,5 @@
-# Built application files
-*.apk
-*.aar
-*.ap_
-*.aab
-
-# Files for the ART/DALVIK VM
-*.dex
-
-# Java class files
-*.class
-
-# Generated files
-bin/
-gen/
-out/
-build/
-.gradle/
-
-# Android Studio / IntelliJ IDEA
+node_modules/
 .idea/
-*.iml
-*.iws
-*.ipr
-.navigation/
-captures/
-.externalNativeBuild
-.cxx/
-
-# OS specific files
-.DS_Store
-Thumbs.db
-
-# Environment & Secrets
-.env
-local.properties
-
-# Python / Odoo bytecode
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
+.gradle/
+build/
+*.log

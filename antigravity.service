@@ -1,0 +1,12 @@
+[Unit]
+Description=Antigravity AI Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/root/remote_start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
