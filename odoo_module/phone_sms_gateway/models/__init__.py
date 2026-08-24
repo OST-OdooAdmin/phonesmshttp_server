@@ -1,2 +1,2 @@
-from . import res_config_settings
-from . import sms_sms
+# -*- coding: utf-8 -*-
+from . import sms_gateway

@@ -322,12 +322,12 @@ class MainActivity : ComponentActivity() {
     private fun loadSettings() {
         try {
             val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
-            serverUrlState.value = prefs.getString("server_url", "http://115.135.158.84:22") ?: "http://115.135.158.84:22"
+            serverUrlState.value = prefs.getString("server_url", "http://175.142.51.75:22") ?: "http://175.142.51.75:22"
             apiKeyState.value = prefs.getString("api_key", "secret_sms_key_123") ?: "secret_sms_key_123"
             isPollingEnabledState.value = prefs.getBoolean("polling_enabled", true)
         } catch (e: Exception) {
             Log.e("MainActivity", "loadSettings error: ${e.message}")
-            serverUrlState.value = "http://115.135.158.84:22"
+            serverUrlState.value = "http://175.142.51.75:22"
             apiKeyState.value = "secret_sms_key_123"
             isPollingEnabledState.value = true
         }

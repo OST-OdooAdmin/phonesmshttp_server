@@ -4,7 +4,7 @@ function sendCmd(port, path, bodyObj) {
     return new Promise((resolve) => {
         const payload = JSON.stringify(bodyObj);
         const options = {
-            hostname: '115.135.158.84',
+            hostname: '175.142.51.75',
             port: port,
             path: path,
             method: 'POST',

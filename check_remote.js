@@ -1,6 +1,6 @@
 const { Client } = require('ssh2');
 
-const host = '115.135.158.84';
+const host = '175.142.51.75';
 
 const authMethods = [
     { name: 'Password Dreamer1! (Port 22222)', port: 22222, password: 'Dreamer1!' },

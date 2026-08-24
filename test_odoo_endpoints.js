@@ -3,7 +3,7 @@ const http = require('http');
 function getUrl(path) {
     return new Promise((resolve) => {
         const options = {
-            hostname: '115.135.158.84',
+            hostname: '175.142.51.75',
             port: 8069,
             path: path,
             method: 'GET',

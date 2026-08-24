@@ -36,9 +36,19 @@ class SmsForegroundService : Service() {
         httpServerEngine = HttpServerEngine(this, 8080) { log ->
             addLog(log)
         }
-        pollingEngine = PollingEngine(this) { log ->
-            addLog(log)
-        }
+        pollingEngine = PollingEngine(
+            this,
+            onIpChanged = { newUrl ->
+                addLog("🔄 Server URL automatically updated from GitHub -> $newUrl")
+                getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("server_url", newUrl)
+                    .apply()
+            },
+            onLog = { log ->
+                addLog(log)
+            }
+        )
     }
 
     private fun startForegroundSafely() {
