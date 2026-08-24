@@ -87,6 +87,14 @@ class MainActivity : ComponentActivity() {
             smsService = binder.getService()
             isBound = true
 
+            smsService?.onLogListener = { _ ->
+                val prefs = getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+                val savedUrl = prefs.getString("server_url", serverUrlState.value) ?: serverUrlState.value
+                if (savedUrl.isNotBlank() && savedUrl != serverUrlState.value) {
+                    serverUrlState.value = savedUrl
+                }
+            }
+
             if (serverUrlState.value.isNotBlank() && isPollingEnabledState.value) {
                 startPollingService()
             }
