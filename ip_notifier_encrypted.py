@@ -114,7 +114,7 @@ def check_and_notify_ip():
 
         # 100% Encrypted Auto-Push to GitHub inside REPO_DIR (/root/phonesmshttp_server)
         try:
-            cmd = f"cd {REPO_DIR} && git add current_ip.enc current_ip.txt && git commit -m 'Encrypted IP Hash Update: {new_ip} ({now_str})' && git push origin main"
+            cmd = f"cd {REPO_DIR} && git config user.email 'admin@flexsuitetech.com' && git config user.name 'Kuching Server Bot' && git add current_ip.enc current_ip.txt && git commit -m 'Encrypted IP Hash Update: {new_ip} ({now_str})' && git push origin main"
             res = os.system(cmd)
             print(f"Git push executed with code {res}")
         except Exception as e:
