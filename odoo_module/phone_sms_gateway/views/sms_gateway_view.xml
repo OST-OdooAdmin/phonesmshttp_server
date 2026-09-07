@@ -13,15 +13,24 @@
                     </header>
                     <sheet>
                         <group>
-                            <group>
+                            <group string="Basic Configuration">
                                 <field name="name"/>
                                 <field name="mode"/>
+                                <field name="server_url"/>
                                 <field name="active"/>
                             </group>
-                            <group>
+                            <group string="Direct Push &amp; Security">
                                 <field name="phone_ip" attrs="{'invisible': [('mode', '!=', 'direct_push')]}"/>
                                 <field name="phone_port" attrs="{'invisible': [('mode', '!=', 'direct_push')]}"/>
                                 <field name="api_key"/>
+                            </group>
+                        </group>
+                        <group string="Per-Country Pacing Delays">
+                            <group>
+                                <field name="pacing_sg_ms"/>
+                            </group>
+                            <group>
+                                <field name="pacing_my_ms"/>
                             </group>
                         </group>
                     </sheet>
@@ -37,9 +46,64 @@
                 <tree string="Phone SMS Gateways">
                     <field name="name"/>
                     <field name="mode"/>
+                    <field name="server_url"/>
                     <field name="phone_ip"/>
+                    <field name="pacing_sg_ms"/>
+                    <field name="pacing_my_ms"/>
                     <field name="active"/>
                 </tree>
+            </field>
+        </record>
+
+        <!-- Outbound Queue Tree View -->
+        <record id="view_sms_outbound_queue_tree" model="ir.ui.view">
+            <field name="name">sms.outbound.queue.tree</field>
+            <field name="model">sms.outbound.queue</field>
+            <field name="arch" type="xml">
+                <tree string="Outbound SMS Queue" decoration-info="state=='queued'" decoration-warning="state=='pending'" decoration-success="state=='sent'" decoration-danger="state=='failed'">
+                    <field name="create_date"/>
+                    <field name="recipient"/>
+                    <field name="country_code"/>
+                    <field name="priority"/>
+                    <field name="message"/>
+                    <field name="pacing_delay_ms"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Outbound Queue Form View -->
+        <record id="view_sms_outbound_queue_form" model="ir.ui.view">
+            <field name="name">sms.outbound.queue.form</field>
+            <field name="model">sms.outbound.queue</field>
+            <field name="arch" type="xml">
+                <form string="Outbound SMS Task">
+                    <header>
+                        <button name="action_send_now" type="object" string="Queue / Send Now" class="oe_highlight" attrs="{'invisible': [('state', '=', 'sent')]}"/>
+                        <button name="action_retry" type="object" string="Retry Task" attrs="{'invisible': [('state', '!=', 'failed')]}"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,queued,pending,sent,failed"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group string="Recipient Information">
+                                <field name="recipient"/>
+                                <field name="country_code"/>
+                                <field name="gateway_id"/>
+                            </group>
+                            <group string="Priority &amp; Pacing">
+                                <field name="priority"/>
+                                <field name="pacing_delay_ms"/>
+                                <field name="sim_slot"/>
+                            </group>
+                        </group>
+                        <group string="Message Content">
+                            <field name="message" nolabel="1"/>
+                        </group>
+                        <group string="Execution Logs" attrs="{'invisible': [('error_log', '=', False)]}">
+                            <field name="error_log" nolabel="1"/>
+                        </group>
+                    </sheet>
+                </form>
             </field>
         </record>
 
@@ -48,7 +112,7 @@
             <field name="name">phone.sms.message.form</field>
             <field name="model">phone.sms.message</field>
             <field name="arch" type="xml">
-                <form string="Outbound SMS Message">
+                <form string="Outbound SMS Message Log">
                     <header>
                         <button name="action_send_now" type="object" string="Send / Queue SMS" class="oe_highlight" attrs="{'invisible': [('state', '=', 'sent')]}"/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,queued,sent,failed"/>
@@ -87,8 +151,14 @@
         </record>
 
         <!-- Actions -->
+        <record id="action_sms_outbound_queue" model="ir.actions.act_window">
+            <field name="name">Outbound SMS Queue</field>
+            <field name="res_model">sms.outbound.queue</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
         <record id="action_phone_sms_message" model="ir.actions.act_window">
-            <field name="name">SMS Dispatch Messages</field>
+            <field name="name">SMS Dispatch Message Logs</field>
             <field name="res_model">phone.sms.message</field>
             <field name="view_mode">tree,form</field>
         </record>
@@ -101,8 +171,9 @@
 
         <!-- Menu items -->
         <menuitem id="menu_phone_sms_root" name="Phone SMS Gateway" sequence="10"/>
-        <menuitem id="menu_phone_sms_messages" name="Outbound SMS Logs" parent="menu_phone_sms_root" action="action_phone_sms_message" sequence="1"/>
-        <menuitem id="menu_phone_sms_config" name="Gateway Settings" parent="menu_phone_sms_root" action="action_phone_sms_gateway" sequence="2"/>
+        <menuitem id="menu_sms_outbound_queue" name="📊 Outbound SMS Queue" parent="menu_phone_sms_root" action="action_sms_outbound_queue" sequence="1"/>
+        <menuitem id="menu_phone_sms_messages" name="📋 Dispatch Logs" parent="menu_phone_sms_root" action="action_phone_sms_message" sequence="2"/>
+        <menuitem id="menu_phone_sms_config" name="⚙️ Gateway Settings" parent="menu_phone_sms_root" action="action_phone_sms_gateway" sequence="3"/>
 
     </data>
 </odoo>

@@ -12,7 +12,7 @@ class PhoneSmsGatewayConfig(models.Model):
 
     name = fields.Char(string='Gateway Name', required=True, default='My Android Phone Gateway')
     mode = fields.Selection([
-        ('server_gateway', 'Central Server Gateway Queue (Port 22 - Recommended)'),
+        ('server_gateway', 'Central Server Gateway Queue (Port 5005/22 - Recommended)'),
         ('direct_push', 'Direct Push (Local Wi-Fi HTTP POST)'),
         ('polling', 'Remote Odoo Polling (Phone pulls directly from Odoo)')
     ], string='Communication Mode', default='server_gateway', required=True)
@@ -21,6 +21,11 @@ class PhoneSmsGatewayConfig(models.Model):
     phone_ip = fields.Char(string='Phone IP Address', help='e.g. 192.168.1.120 (for Direct Push mode)')
     phone_port = fields.Integer(string='Phone Port', default=8080)
     api_key = fields.Char(string='API Security Key', default='secret_sms_key_123')
+    
+    # Country Pacing Delays (ms)
+    pacing_sg_ms = fields.Integer(string='Singapore (+65) Pacing Delay (ms)', default=2000)
+    pacing_my_ms = fields.Integer(string='Malaysia (+60) Pacing Delay (ms)', default=1000)
+    
     active = fields.Boolean(string='Active', default=True)
 
     def test_connection(self):
@@ -31,7 +36,7 @@ class PhoneSmsGatewayConfig(models.Model):
             try:
                 res = requests.get(url, timeout=5)
                 if res.status_code == 200:
-                    return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Success', 'message': f'Connected to Server Gateway! Pending tasks: {res.text}', 'sticky': False, 'type': 'success'}}
+                    return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Success', 'message': f'Connected to Server Gateway! Response: {res.text}', 'sticky': False, 'type': 'success'}}
                 else:
                     return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Failed', 'message': f'Server returned HTTP {res.status_code}', 'sticky': False, 'type': 'warning'}}
             except Exception as e:
@@ -53,12 +58,71 @@ class PhoneSmsGatewayConfig(models.Model):
             return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': 'Polling Mode Active', 'message': 'In Polling mode, the Android app periodically checks Odoo for new messages.', 'sticky': False, 'type': 'info'}}
 
 
+class SmsOutboundQueue(models.Model):
+    _name = 'sms.outbound.queue'
+    _description = 'Smart Outbound SMS Queue'
+    _order = 'priority asc, create_date desc'
+
+    recipient = fields.Char(string='Recipient Phone', required=True)
+    message = fields.Text(string='Message Content', required=True)
+    country_code = fields.Selection([
+        ('+65', 'Singapore (+65)'),
+        ('+60', 'Malaysia (+60)'),
+        ('other', 'International / Other')
+    ], string='Country Prefix', compute='_compute_country_code', store=True, readonly=False)
+    
+    priority = fields.Selection([
+        ('1', '1 - OTP / Urgent'),
+        ('2', '2 - Transactional'),
+        ('3', '3 - Bulk / Marketing')
+    ], string='Priority', default='2', required=True)
+
+    pacing_delay_ms = fields.Integer(string='Pacing Delay (ms)', default=1000)
+    sim_slot = fields.Char(string='SIM Slot', default='1')
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('queued', 'Queued'),
+        ('pending', 'Pending Phone Dispatch'),
+        ('sent', 'Sent / Delivered'),
+        ('failed', 'Failed')
+    ], string='Status', default='queued', required=True)
+
+    error_log = fields.Text(string='Execution Log / Error Details')
+    gateway_id = fields.Many2one('phone.sms.gateway', string='Gateway Config')
+
+    @api.depends('recipient')
+    def _compute_country_code(self):
+        for rec in self:
+            num = (rec.recipient or '').strip()
+            if num.startswith('+65') or num.startswith('65'):
+                rec.country_code = '+65'
+                rec.pacing_delay_ms = 2000
+            elif num.startswith('+60') or num.startswith('60'):
+                rec.country_code = '+60'
+                rec.pacing_delay_ms = 1000
+            else:
+                rec.country_code = 'other'
+                rec.pacing_delay_ms = 1500
+
+    def action_retry(self):
+        """Re-queue failed message"""
+        for record in self:
+            record.state = 'queued'
+            record.error_log = 'Re-queued for dispatch.'
+
+    def action_send_now(self):
+        """Manually trigger immediate dispatch"""
+        for record in self:
+            record.state = 'queued'
+            record.error_log = 'Manually queued for phone pickup.'
+
+
 class PhoneSmsMessage(models.Model):
     _name = 'phone.sms.message'
     _description = 'Phone SMS Outbound Queue & Logs'
     _order = 'create_date desc'
 
-    gateway_id = fields.Many2one('phone.sms.gateway', string='Gateway', required=True)
+    gateway_id = fields.Many2one('phone.sms.gateway', string='Gateway')
     recipient_number = fields.Char(string='Recipient Phone', required=True)
     message_body = fields.Text(string='Message Content', required=True)
     state = fields.Selection([
@@ -73,9 +137,9 @@ class PhoneSmsMessage(models.Model):
     def action_send_now(self):
         """Manually trigger SMS dispatch"""
         for record in self:
-            if record.gateway_id.mode == 'server_gateway':
+            if record.gateway_id and record.gateway_id.mode == 'server_gateway':
                 record._send_via_server_gateway()
-            elif record.gateway_id.mode == 'direct_push':
+            elif record.gateway_id and record.gateway_id.mode == 'direct_push':
                 record._send_via_direct_push()
             else:
                 record.state = 'queued'
@@ -84,7 +148,7 @@ class PhoneSmsMessage(models.Model):
     def _send_via_server_gateway(self):
         self.ensure_one()
         gateway = self.gateway_id
-        server_url = gateway.server_url or 'http://172.17.0.1:22'
+        server_url = gateway.server_url if gateway else 'http://172.17.0.1:22'
         url = f"{server_url.rstrip('/')}/queue-sms"
         payload = {
             "to": self.recipient_number,
@@ -107,7 +171,7 @@ class PhoneSmsMessage(models.Model):
     def _send_via_direct_push(self):
         self.ensure_one()
         gateway = self.gateway_id
-        if not gateway.phone_ip:
+        if not gateway or not gateway.phone_ip:
             self.state = 'failed'
             self.error_log = 'No Phone IP set on gateway configuration.'
             return

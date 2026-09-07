@@ -49,36 +49,48 @@ class PhoneSmsController(http.Controller):
 
         tasks = []
 
-        # 1. Fetch from phone.sms.message (All queued messages)
+        # 1. Fetch from sms.outbound.queue (Smart Multi-Country Queue)
+        try:
+            if 'sms.outbound.queue' in request.env:
+                wizard_records = request.env['sms.outbound.queue'].sudo().search([('state', 'in', ['queued', 'pending'])], limit=20)
+                for rec in wizard_records:
+                    rec_to = getattr(rec, 'recipient', None) or getattr(rec, 'recipient_number', '') or getattr(rec, 'to', '')
+                    rec_msg = getattr(rec, 'message', None) or getattr(rec, 'message_body', '')
+                    country = getattr(rec, 'country_code', 'other')
+                    pacing = getattr(rec, 'pacing_delay_ms', 1000)
+                    priority = getattr(rec, 'priority', '2')
+
+                    tasks.append({
+                        'id': rec.id,
+                        'to': rec_to,
+                        'recipient': rec_to,
+                        'message': rec_msg,
+                        'country_code': country,
+                        'pacing_delay_ms': pacing,
+                        'priority': priority,
+                        'model': 'sms.outbound.queue'
+                    })
+                    # Mark as pending phone pickup
+                    if rec.state == 'queued':
+                        rec.state = 'pending'
+        except Exception as e:
+            _logger.warning("Error fetching sms.outbound.queue: %s", e)
+
+        # 2. Fetch from phone.sms.message (Legacy & Direct Messages)
         try:
             pending_records = request.env['phone.sms.message'].sudo().search([('state', '=', 'queued')], limit=20)
             for rec in pending_records:
                 tasks.append({
                     'id': rec.id,
                     'to': rec.recipient_number,
+                    'recipient': rec.recipient_number,
                     'message': rec.message_body,
                     'model': 'phone.sms.message'
                 })
         except Exception as e:
             _logger.warning("Error fetching phone.sms.message: %s", e)
 
-        # 2. Fetch from sms.outbound.queue (created by wizard / test dispatch)
-        try:
-            if 'sms.outbound.queue' in request.env:
-                wizard_records = request.env['sms.outbound.queue'].sudo().search([('state', '=', 'queued')], limit=20)
-                for rec in wizard_records:
-                    rec_to = getattr(rec, 'recipient', None) or getattr(rec, 'recipient_number', '') or getattr(rec, 'to', '')
-                    rec_msg = getattr(rec, 'message', None) or getattr(rec, 'message_body', '')
-                    tasks.append({
-                        'id': rec.id,
-                        'to': rec_to,
-                        'message': rec_msg,
-                        'model': 'sms.outbound.queue'
-                    })
-        except Exception as e:
-            _logger.warning("Error fetching sms.outbound.queue: %s", e)
-
-        res_data = json.dumps({'pending': tasks})
+        res_data = json.dumps({'pending': tasks, 'count': len(tasks)})
         return request.make_response(res_data, headers=[('Content-Type', 'application/json'), ('Access-Control-Allow-Origin', '*')])
 
     @http.route('/api/sms/logs', type='http', auth='none', methods=['GET', 'POST'], csrf=False)
@@ -86,26 +98,12 @@ class PhoneSmsController(http.Controller):
         """Called by Android Phone App to display logs dashboard"""
         logs = []
         try:
-            all_records = request.env['phone.sms.message'].sudo().search([], limit=100, order='create_date desc')
-            for rec in all_records:
-                status_str = "SUCCESS" if rec.state == 'sent' else ("FAILED: " + (rec.error_log or '') if rec.state == 'failed' else "QUEUED")
-                logs.append({
-                    "recipient": rec.recipient_number or '',
-                    "message": rec.message_body or '',
-                    "status": status_str,
-                    "timestamp": str(rec.create_date or ''),
-                    "wordCount": len((rec.message_body or '').split())
-                })
-        except Exception as e:
-            _logger.warning("Error reading phone.sms.message logs: %s", e)
-
-        try:
             if 'sms.outbound.queue' in request.env:
                 w_records = request.env['sms.outbound.queue'].sudo().search([], limit=100, order='create_date desc')
                 for rec in w_records:
                     rec_to = getattr(rec, 'recipient', None) or getattr(rec, 'recipient_number', '')
                     rec_msg = getattr(rec, 'message', None) or getattr(rec, 'message_body', '')
-                    status_str = "SUCCESS" if rec.state == 'sent' else ("FAILED: " + (getattr(rec, 'error_log', '') or '') if rec.state == 'failed' else "QUEUED")
+                    status_str = "SUCCESS" if rec.state == 'sent' else ("FAILED: " + (getattr(rec, 'error_log', '') or '') if rec.state == 'failed' else rec.state.upper())
                     logs.append({
                         "recipient": rec_to or '',
                         "message": rec_msg or '',
@@ -115,6 +113,20 @@ class PhoneSmsController(http.Controller):
                     })
         except Exception as e:
             _logger.warning("Error reading sms.outbound.queue logs: %s", e)
+
+        try:
+            all_records = request.env['phone.sms.message'].sudo().search([], limit=100, order='create_date desc')
+            for rec in all_records:
+                status_str = "SUCCESS" if rec.state == 'sent' else ("FAILED: " + (rec.error_log or '') if rec.state == 'failed' else "QUEUED")
+                logs.append({
+                    "recipient": rec_number or rec.recipient_number or '',
+                    "message": rec.message_body or '',
+                    "status": status_str,
+                    "timestamp": str(rec.create_date or ''),
+                    "wordCount": len((rec.message_body or '').split())
+                })
+        except Exception as e:
+            _logger.warning("Error reading phone.sms.message logs: %s", e)
 
         res_data = json.dumps({'logs': logs})
         return request.make_response(res_data, headers=[('Content-Type', 'application/json'), ('Access-Control-Allow-Origin', '*')])
@@ -128,22 +140,22 @@ class PhoneSmsController(http.Controller):
         except Exception:
             data = kw
 
-        task_id = data.get('task_id')
+        task_id = data.get('task_id') or data.get('id')
         status = data.get('status')
         detail = data.get('detail', '')
-        model_name = data.get('model', 'phone.sms.message')
+        model_name = data.get('model', 'sms.outbound.queue')
 
         if not task_id:
             res_data = json.dumps({'error': 'Missing task_id'})
             return request.make_response(res_data, headers=[('Content-Type', 'application/json'), ('Access-Control-Allow-Origin', '*')])
 
         # Try specified model or fallback to both
-        models_to_check = [model_name] if model_name in request.env else ['phone.sms.message', 'sms.outbound.queue']
+        models_to_check = [model_name] if model_name in request.env else ['sms.outbound.queue', 'phone.sms.message']
         for m_name in models_to_check:
             if m_name in request.env:
                 msg_record = request.env[m_name].sudo().browse(int(task_id))
                 if msg_record.exists():
-                    if status in ['sent', 'SUCCESS', 'success']:
+                    if status in ['sent', 'SUCCESS', 'success', 'reported']:
                         msg_record.state = 'sent'
                         if hasattr(msg_record, 'error_log'):
                             msg_record.error_log = f"Delivered via Phone Gateway. Details: {detail}"

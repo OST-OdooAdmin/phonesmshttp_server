@@ -1,3 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_phone_sms_gateway,phone.sms.gateway,model_phone_sms_gateway,base.group_user,1,1,1,1
 access_phone_sms_message,phone.sms.message,model_phone_sms_message,base.group_user,1,1,1,1
+access_sms_outbound_queue,sms.outbound.queue,model_sms_outbound_queue,base.group_user,1,1,1,1
